@@ -192,3 +192,33 @@ describe("データ未取得と成約0件の区別", () => {
     expect(d2.reasons.map((r) => r.message).join()).toContain("0件");
   });
 });
+
+import { analyzeLiquidity } from "@/lib/market/liquidity";
+describe("流動性分析", () => {
+  it("データ未取得は全項目「不明」（0件と区別）", () => {
+    const l = analyzeLiquidity([], "v-silver", "NEW_UNUSED", TODAY, 30, false);
+    expect(l.dataStatus).toBe("NO_DATA");
+    expect(l.soldPerMonth).toBeNull();
+    expect(l.convertibility).toBe("UNKNOWN");
+    expect(l.inventoryRisk).toBe("UNKNOWN");
+  });
+  it("出品のみ（成約0件）: 観測あり・在庫月数は算出不能・換金性低", () => {
+    const l = analyzeLiquidity([ob({ kind: "ASK", soldAt: null })], "v-silver", "NEW_UNUSED", TODAY, 30, false);
+    expect(l.dataStatus).toBe("OBSERVED");
+    expect(l.sold90).toBe(0);
+    expect(l.monthsOfSupply).toBeNull();
+    expect(l.convertibility).toBe("LOW");
+  });
+  it("販売日数・在庫月数・出品と成約の差", () => {
+    const sold = [1, 2, 3, 4, 5, 6].map((k) => ({ ...ob({ priceJpy: "100000", soldAt: `2026-11-0${k}`, externalRef: `s${k}` }), listedAt: `2026-10-2${k}` }));
+    const asks = [1, 2, 3, 4].map((k) => ob({ kind: "ASK", priceJpy: "120000", soldAt: null, externalRef: `a${k}`, observedAt: "2026-11-15" }));
+    const l = analyzeLiquidity([...sold, ...asks], "v-silver", "NEW_UNUSED", TODAY, 30, false);
+    expect(l.sold90).toBe(6);
+    expect(l.soldPerMonth).toBe(2);
+    expect(l.monthsOfSupply).toBe(2);
+    expect(l.inventoryRisk).toBe("MEDIUM");
+    expect(l.daysToSell.median).toBe(11); // 10月は31日: 10-21→11-01 = 11日
+    expect(l.askOverSoldPct).toBe(0.2);
+    expect(l.convertibility).toBe("MEDIUM");
+  });
+});
