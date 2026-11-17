@@ -36,7 +36,7 @@ async function existingKeys(kind: ImportKind): Promise<Set<string>> {
 export async function importCsv(kind: ImportKind, filename: string, bytes: Uint8Array) {
   const db = await getDb();
   const [products, variants, brands] = await Promise.all([
-    db.select({ id: s.products.id }).from(s.products),
+    db.select({ id: s.products.id, nameEn: s.products.nameEn, nameJaReading: s.products.nameJaReading }).from(s.products),
     db.select({ id: s.productVariants.id }).from(s.productVariants),
     db.select({ id: s.brands.id }).from(s.brands),
   ]);
@@ -44,6 +44,7 @@ export async function importCsv(kind: ImportKind, filename: string, bytes: Uint8
     productIds: new Set(products.map((p) => p.id)),
     variantIds: new Set(variants.map((v) => v.id)),
     brandIds: new Set(brands.map((b) => b.id)),
+    catalog: products,
     existingKeys: await existingKeys(kind),
     today: new Date().toISOString().slice(0, 10),
   });
@@ -84,6 +85,8 @@ export async function importCsv(kind: ImportKind, filename: string, bytes: Uint8
             catalogStatus: r.catalog_status as (typeof s.CATALOG_STATUS)[number],
             distinguishingFeatures: opt(r.distinguishing_features),
             notes: opt(r.notes),
+            sourceUrl: opt(r.source_url),
+            verifiedAt: opt(r.verified_at),
           });
           for (const a of (r.aliases ?? "").split("|").map((x) => x.trim()).filter(Boolean))
             await tx.insert(s.productAliases).values({ productId: r.id, alias: a }).onConflictDoNothing();

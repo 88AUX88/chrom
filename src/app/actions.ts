@@ -295,3 +295,114 @@ export async function savePlan(f: FormData) {
   });
   redirect(`/products/${productId}?variant=${encodeURIComponent(variantId)}#summary`);
 }
+
+// ───────── 商品の追加・編集・取り消し（変更履歴付き） ─────────
+import { conflictsWith } from "@/lib/catalog";
+
+type Tx = Parameters<Parameters<Awaited<ReturnType<typeof getDb>>["transaction"]>[0]>[0];
+async function logChange(tx: Tx, entity: string, entityId: string, action: "CREATE" | "UPDATE" | "RETRACT", before: Record<string, unknown> | null, after: Record<string, unknown>, reason?: string | null) {
+  const changes: Record<string, { before: unknown; after: unknown }> = {};
+  for (const k of Object.keys(after)) {
+    const b = before ? before[k] : null;
+    if (JSON.stringify(b) !== JSON.stringify(after[k])) changes[k] = { before: b ?? null, after: after[k] };
+  }
+  if (action !== "CREATE" && Object.keys(changes).length === 0) return false;
+  await tx.insert(s.changeLog).values({ entity, entityId, action, changes, reason: reason ?? null });
+  return true;
+}
+
+function productFields(f: FormData) {
+  const category = str(f, "category");
+  if (!(s.PRODUCT_CATEGORIES as readonly string[]).includes(category)) throw new Error("カテゴリーが不正です");
+  const catalogStatus = str(f, "catalogStatus");
+  if (!(s.CATALOG_STATUS as readonly string[]).includes(catalogStatus)) throw new Error("確認状態が不正です");
+  const nameEn = str(f, "nameEn");
+  const nameJaReading = str(f, "nameJaReading");
+  if (!nameEn || !nameJaReading) throw new Error("正式名称と読みは必須です");
+  const sourceUrl = str(f, "sourceUrl") || null;
+  if (sourceUrl && !/^https?:\/\//.test(sourceUrl)) throw new Error("出典URLが不正です");
+  const officialModelNumber = str(f, "officialModelNumber") || null;
+  if (officialModelNumber && !sourceUrl) throw new Error("公式型番を登録するには出典URLが必要です（架空の型番を防ぐため）");
+  if (catalogStatus === "VERIFIED" && !sourceUrl) throw new Error("確認済み（VERIFIED）にするには出典URLが必要です");
+  const verifiedAt = str(f, "verifiedAt") || null;
+  if (verifiedAt && !/^\d{4}-\d{2}-\d{2}$/.test(verifiedAt)) throw new Error("確認日が不正です");
+  const materials = f.getAll("materials").map(String).filter((m) => (s.MATERIALS as readonly string[]).includes(m));
+  if (materials.length === 0) throw new Error("素材を1つ以上選んでください");
+  const sizes = str(f, "sizes").split(/[,、\n]/).map((x) => x.trim()).filter(Boolean);
+  const stones = f.getAll("stones").map((x) => String(x) === "true");
+  return {
+    category: category as (typeof s.PRODUCT_CATEGORIES)[number],
+    catalogStatus: catalogStatus as (typeof s.CATALOG_STATUS)[number],
+    nameEn,
+    nameJaReading,
+    officialModelNumber,
+    distinguishingFeatures: str(f, "features") || null,
+    notes: str(f, "notes") || null,
+    sourceUrl,
+    verifiedAt,
+    variantOptions: { materials, sizes, stones: stones.length ? [...new Set(stones)] : [false] },
+    confusableWith: str(f, "confusableWith").split(/[,\s]+/).map((x) => x.trim()).filter(Boolean),
+  };
+}
+
+export async function createProduct(_: unknown, f: FormData): Promise<{ error?: string; duplicates?: string[] }> {
+  try {
+    const id = str(f, "id");
+    if (!/^[a-z0-9][a-z0-9-]{2,80}$/.test(id)) return { error: "商品IDは英小文字・数字・ハイフン（例 ch-cross-pendant-large）" };
+    const fields = productFields(f);
+    const db = await getDb();
+    const existing = await db.select({ id: s.products.id, nameEn: s.products.nameEn, nameJaReading: s.products.nameJaReading }).from(s.products);
+    if (existing.some((e) => e.id === id)) return { error: "同じ商品IDが既に存在します" };
+    const dup = conflictsWith(fields.nameEn, fields.nameJaReading, existing);
+    if (dup.length && str(f, "allowDuplicate") !== "on") return { error: "名称が既存商品と重複しています。別商品であることを確認した場合のみチェックを入れて再送信してください", duplicates: dup.map((d) => d.id) };
+    await db.transaction(async (tx) => {
+      await tx.insert(s.products).values({ id, brandId: "chrome-hearts", ...fields });
+      const aliases = str(f, "aliases").split(/[,、]/).map((x) => x.trim()).filter(Boolean);
+      if (aliases.length) await tx.insert(s.productAliases).values(aliases.map((alias) => ({ productId: id, alias }))).onConflictDoNothing();
+      await logChange(tx, "products", id, "CREATE", null, { ...fields, aliases });
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "保存できませんでした" };
+  }
+  redirect(`/products/${str(f, "id")}`);
+}
+
+export async function updateProduct(_: unknown, f: FormData): Promise<{ error?: string }> {
+  const id = str(f, "id");
+  try {
+    const fields = productFields(f);
+    const db = await getDb();
+    const [before] = await db.select().from(s.products).where(eq(s.products.id, id));
+    if (!before) return { error: "商品が見つかりません" };
+    await db.transaction(async (tx) => {
+      const beforeAliases = (await tx.select({ a: s.productAliases.alias }).from(s.productAliases).where(eq(s.productAliases.productId, id))).map((r) => r.a).sort();
+      const aliases = [...new Set(str(f, "aliases").split(/[,、]/).map((x) => x.trim()).filter(Boolean))].sort();
+      const changed = await logChange(tx, "products", id, "UPDATE", { ...before, aliases: beforeAliases } as Record<string, unknown>, { ...fields, aliases }, str(f, "reason") || null);
+      if (!changed) return;
+      await tx.update(s.products).set({ ...fields, updatedAt: new Date() }).where(eq(s.products.id, id));
+      await tx.delete(s.productAliases).where(eq(s.productAliases.productId, id));
+      if (aliases.length) await tx.insert(s.productAliases).values(aliases.map((alias) => ({ productId: id, alias })));
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "保存できませんでした" };
+  }
+  redirect(`/products/${id}?saved=1`);
+}
+
+const RETRACTABLE = { retail_prices: s.retailPrices, market_observations: s.marketObservations, buyback_quotes: s.buybackQuotes } as const;
+/** 誤ったデータを「取り消し」扱いにする（削除しない・履歴に残す） */
+export async function retractRecord(f: FormData) {
+  const entity = str(f, "entity") as keyof typeof RETRACTABLE;
+  const table = RETRACTABLE[entity];
+  if (!table) throw new Error("対象が不正です");
+  const id = Number(str(f, "id"));
+  const reason = str(f, "reason");
+  if (!reason) throw new Error("取り消し理由を入力してください");
+  const db = await getDb();
+  await db.transaction(async (tx) => {
+    const now = new Date();
+    await tx.update(table).set({ retractedAt: now, retractReason: reason }).where(eq(table.id, id));
+    await logChange(tx, entity, String(id), "RETRACT", { retractedAt: null }, { retractedAt: now.toISOString() }, reason);
+  });
+  revalidatePath(str(f, "back") || "/products");
+}

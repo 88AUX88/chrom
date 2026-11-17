@@ -56,6 +56,8 @@ export const products = pgTable(
       .notNull()
       .default({ materials: ["SILVER_925"], sizes: [], stones: [false] }),
     notes: text("notes"),
+    sourceUrl: text("source_url"), // 名称・仕様の根拠（公式ページ等）
+    verifiedAt: date("verified_at"), // 名称・仕様を確認した日
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

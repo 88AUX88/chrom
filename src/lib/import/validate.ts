@@ -16,6 +16,7 @@ import {
   TAX_INCLUSION,
 } from "@/db/schema";
 import { parseStrictDecimal } from "../money";
+import { conflictsWith, type CatalogItem } from "../catalog";
 
 export type ImportKind = (typeof IMPORT_KINDS)[number];
 export type Row = Record<string, string>;
@@ -38,6 +39,8 @@ export interface RefContext {
   /** 既存データの重複キー */
   existingKeys: Set<string>;
   today: string; // YYYY-MM-DD
+  /** 既存商品（名称の重複検出用） */
+  catalog?: CatalogItem[];
 }
 
 export const CURRENCIES = ["JPY", "USD", "EUR", "GBP", "HKD", "SGD", "CNY", "KRW", "TWD", "AUD", "CAD", "CHF", "AED", "THB"];
@@ -46,7 +49,7 @@ const EVIDENCE_COLS = ["source_url", "source_name", "source_type", "reliability"
 export const TEMPLATE_COLUMNS: Record<ImportKind, { required: string[]; optional: string[] }> = {
   products: {
     required: ["id", "brand_id", "category", "name_en", "name_ja_reading", "catalog_status"],
-    optional: ["official_model_number", "distinguishing_features", "aliases", "notes"],
+    optional: ["official_model_number", "distinguishing_features", "aliases", "notes", "source_url", "verified_at"],
   },
   variants: {
     required: ["id", "product_id", "material", "has_stones", "catalog_status"],
@@ -151,6 +154,14 @@ export function validateRow(kind: ImportKind, r: Row, ctx: RefContext): string[]
       if (!oneOf(CATALOG_STATUS, r.catalog_status)) errs.push(`catalog_status が不正`);
       if (!r.name_en) errs.push("name_en がありません");
       if (!r.name_ja_reading) errs.push("name_ja_reading がありません");
+      {
+        const dup = conflictsWith(r.name_en ?? "", r.name_ja_reading ?? "", (ctx.catalog ?? []).filter((c) => c.id !== r.id));
+        if (dup.length) errs.push(`既存商品と名称が重複しています: ${dup.map((d) => d.id).join(", ")}`);
+      }
+      if (r.catalog_status === "VERIFIED" && !r.source_url) errs.push("VERIFIED にするには source_url（根拠）が必要です");
+      if (r.official_model_number && !r.source_url) errs.push("公式型番には source_url（根拠）が必要です");
+      if (r.source_url && !/^https?:\/\//.test(r.source_url)) errs.push("source_url が不正です");
+      if (r.verified_at && !isValidDate(r.verified_at)) errs.push("verified_at が日付ではありません");
       break;
     case "variants":
       if (!/^[a-z0-9][a-z0-9-]{2,120}$/.test(r.id)) errs.push("id は英小文字・数字・ハイフンのみ");
@@ -248,7 +259,7 @@ export function validateCsv(kind: ImportKind, bytes: Uint8Array, ctx: RefContext
   const quarantine: Quarantined[] = [];
   const seen = new Set<string>();
   // 同一ファイル内で新規追加される product/variant も参照可能にする
-  const localCtx: RefContext = { ...ctx, productIds: new Set(ctx.productIds), variantIds: new Set(ctx.variantIds) };
+  const localCtx: RefContext = { ...ctx, productIds: new Set(ctx.productIds), variantIds: new Set(ctx.variantIds), catalog: [...(ctx.catalog ?? [])] };
   parsed.data.forEach((raw, idx) => {
     const r: Row = {};
     for (const [k, v] of Object.entries(raw)) r[k] = (v ?? "").trim();
@@ -260,7 +271,10 @@ export function validateCsv(kind: ImportKind, bytes: Uint8Array, ctx: RefContext
     else {
       seen.add(key);
       accepted.push({ row: idx + 1, data: r });
-      if (kind === "products") localCtx.productIds.add(r.id);
+      if (kind === "products") {
+        localCtx.productIds.add(r.id);
+        localCtx.catalog!.push({ id: r.id, nameEn: r.name_en, nameJaReading: r.name_ja_reading });
+      }
       if (kind === "variants") localCtx.variantIds.add(r.id);
     }
   });

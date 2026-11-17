@@ -43,6 +43,9 @@ export const MATERIAL_LABEL: Record<string, string> = {
   K22_YG: "22K イエローゴールド",
   K22_WG: "22K ホワイトゴールド",
   PLATINUM: "プラチナ",
+  LEATHER: "レザー",
+  DENIM: "デニム",
+  TEXTILE: "テキスタイル（布・ダウン等）",
   OTHER: "その他",
 };
 
@@ -53,6 +56,10 @@ export const CATEGORY_LABEL: Record<string, string> = {
   EARRING: "ピアス",
   CHAIN: "チェーン",
   BRACELET: "ブレスレット",
+  DENIM: "デニム",
+  APPAREL: "アパレル",
+  OUTERWEAR: "アウター・ダウン",
+  ACCESSORY: "小物",
   OTHER: "その他",
 };
 

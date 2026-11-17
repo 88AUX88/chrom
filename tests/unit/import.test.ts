@@ -131,3 +131,24 @@ describe("海外の二次流通・査定種別", () => {
     expect(r.quarantine[2].reasons.join()).toContain("日本の販売先");
   });
 });
+
+import { findDuplicates, conflictsWith, normalizeName } from "@/lib/catalog";
+describe("商品の重複検出", () => {
+  it("表記ゆれ（大文字小文字・空白・全角・中黒）を同一視", () => {
+    expect(normalizeName("Paper Chain  Necklace")).toBe(normalizeName("paper-chain necklace"));
+    expect(normalizeName("ペーパーチェーン・ネックレス")).toBe(normalizeName("ペーパーチェーン ネックレス"));
+    expect(normalizeName("ＣＨ Ｐｌｕｓ")).toBe("chplus");
+  });
+  it("英名・読み・別名の衝突を検出し、別商品は検出しない", () => {
+    const g = findDuplicates([
+      { id: "a", nameEn: "Paper Chain Necklace", nameJaReading: "ペーパーチェーン ネックレス", aliases: ["ペーパーチェーン"] },
+      { id: "b", nameEn: "paper chain necklace", nameJaReading: "ペーパー チェーン", aliases: [] },
+      { id: "c", nameEn: "Roll Chain Necklace", nameJaReading: "ロールチェーン", aliases: ["ペーパーチェーン"] },
+      { id: "d", nameEn: "Twist Chain Necklace", nameJaReading: "ツイストチェーン", aliases: [] },
+    ]);
+    expect(g.find((x) => x.reason === "英語名が同じ")?.ids).toEqual(["a", "b"]);
+    expect(g.find((x) => x.reason === "別名が同じ")?.ids).toEqual(["a", "c"]);
+    expect(g.some((x) => x.ids.includes("d"))).toBe(false);
+    expect(conflictsWith("PAPER chain necklace", "", [{ id: "a", nameEn: "Paper Chain Necklace", nameJaReading: "x" }])).toHaveLength(1);
+  });
+});

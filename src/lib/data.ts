@@ -7,25 +7,41 @@ import { DEFAULT_EXPENSE_PROFILE, type ExpenseProfileData, variantIdFor } from "
 import type { BusinessTaxStatus } from "./profit/types";
 import type { Observation } from "./market/stats";
 
-export async function listProducts(q?: string) {
+export interface ProductFilter {
+  q?: string;
+  category?: string;
+  material?: string;
+  status?: string;
+}
+
+export async function listProducts(qOrFilter?: string | ProductFilter) {
+  const f: ProductFilter = typeof qOrFilter === "string" || qOrFilter === undefined ? { q: qOrFilter } : qOrFilter;
   const db = await getDb();
-  const term = q?.trim();
-  if (!term) return db.select().from(s.products).orderBy(asc(s.products.category), asc(s.products.nameEn));
-  const like = `%${term}%`;
-  const aliasHits = await db.select({ id: s.productAliases.productId }).from(s.productAliases).where(ilike(s.productAliases.alias, like));
-  const ids = aliasHits.map((a) => a.id);
-  return db
-    .select()
-    .from(s.products)
-    .where(
+  const conds = [];
+  const term = f.q?.trim();
+  if (term) {
+    const like = `%${term}%`;
+    const aliasHits = await db.select({ id: s.productAliases.productId }).from(s.productAliases).where(ilike(s.productAliases.alias, like));
+    const ids = aliasHits.map((a) => a.id);
+    conds.push(
       or(
         ilike(s.products.nameEn, like),
         ilike(s.products.nameJaReading, like),
         ilike(s.products.id, like),
+        ilike(s.products.officialModelNumber, like),
         ids.length ? inArray(s.products.id, ids) : sql`false`,
       ),
-    )
-    .orderBy(asc(s.products.nameEn));
+    );
+  }
+  if (f.category && (s.PRODUCT_CATEGORIES as readonly string[]).includes(f.category)) conds.push(eq(s.products.category, f.category as (typeof s.PRODUCT_CATEGORIES)[number]));
+  if (f.status && (s.CATALOG_STATUS as readonly string[]).includes(f.status)) conds.push(eq(s.products.catalogStatus, f.status as (typeof s.CATALOG_STATUS)[number]));
+  if (f.material && (s.MATERIALS as readonly string[]).includes(f.material)) conds.push(sql`${s.products.variantOptions}->'materials' ? ${f.material}`);
+  return db.select().from(s.products).where(conds.length ? and(...conds) : undefined).orderBy(asc(s.products.category), asc(s.products.nameEn));
+}
+
+export async function allAliases() {
+  const db = await getDb();
+  return db.select().from(s.productAliases);
 }
 
 export async function getProduct(id: string) {
