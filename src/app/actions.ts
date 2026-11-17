@@ -31,7 +31,8 @@ export async function login(_: unknown, f: FormData): Promise<{ error?: string }
   if (!checkPassword(str(f, "password"))) return { error: "パスワードが違うか、サーバー側の認証設定（APP_PASSWORD / SESSION_SECRET）がありません。" };
   (await cookies()).set(SESSION_COOKIE, await createSessionValue(), {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    // 本番(HTTPS)では secure。自宅LANで http://<MacのIP>:3000 を iPhone から試す場合のみ COOKIE_SECURE=false
+    secure: process.env.COOKIE_SECURE ? process.env.COOKIE_SECURE === "true" : process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
     maxAge: SESSION_TTL_SEC,
