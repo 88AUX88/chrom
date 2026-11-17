@@ -35,7 +35,7 @@ export const brands = pgTable("brands", {
   createdAt: createdAt(),
 });
 
-export const PRODUCT_CATEGORIES = ["RING", "PENDANT", "CHARM", "EARRING", "CHAIN", "BRACELET", "OTHER"] as const;
+export const PRODUCT_CATEGORIES = ["RING", "PENDANT", "CHARM", "EARRING", "CHAIN", "BRACELET", "DENIM", "APPAREL", "OUTERWEAR", "ACCESSORY", "OTHER"] as const;
 export const CATALOG_STATUS = ["VERIFIED", "REPORTED", "UNVERIFIED"] as const;
 
 export const products = pgTable(
@@ -62,7 +62,7 @@ export const products = pgTable(
   (t) => [index("products_brand_idx").on(t.brandId)],
 );
 
-export const MATERIALS = ["SILVER_925", "K18_WG", "K18_YG", "K22_YG", "K22_WG", "PLATINUM", "OTHER"] as const;
+export const MATERIALS = ["SILVER_925", "K18_WG", "K18_YG", "K22_YG", "K22_WG", "PLATINUM", "LEATHER", "DENIM", "TEXTILE", "OTHER"] as const;
 export type Material = (typeof MATERIALS)[number];
 
 export const productVariants = pgTable(
@@ -173,12 +173,14 @@ export const retailPrices = pgTable(
     observedAt: date("observed_at").notNull(),
     evidenceId: integer("evidence_id").notNull().references(() => sourceEvidence.id),
     importBatchId: integer("import_batch_id").references(() => importBatches.id),
+    retractedAt: timestamp("retracted_at", { withTimezone: true }), // 誤データの取り消し（削除しない）
+    retractReason: text("retract_reason"),
     createdAt: createdAt(),
   },
   (t) => [index("retail_variant_idx").on(t.variantId)],
 );
 
-export const MARKET_PLATFORMS = ["SNKRDUNK", "BUYMA", "RINKAN", "BRING", "KOMEHYO", "MERCARI", "OTHER"] as const;
+export const MARKET_PLATFORMS = ["SNKRDUNK", "BUYMA", "RINKAN", "BRING", "KOMEHYO", "MERCARI", "EBAY", "GRAILED", "STOCKX", "VESTIAIRE", "THE_REALREAL", "FARFETCH", "OTHER"] as const;
 /** 二次流通の観測区分。RETAIL は retail_prices、BUYBACK_QUOTE は buyback_quotes に分離。 */
 export const MARKET_KINDS = ["ASK", "VERIFIED_SOLD", "REPORTED_SOLD", "ESTIMATE"] as const;
 export type MarketKind = (typeof MARKET_KINDS)[number];
@@ -192,7 +194,11 @@ export const marketObservations = pgTable(
     variantId: text("variant_id").notNull().references(() => productVariants.id),
     platform: text("platform", { enum: MARKET_PLATFORMS }).notNull(),
     kind: text("kind", { enum: MARKET_KINDS }).notNull(),
-    priceJpy: numeric("price_jpy", { precision: 14, scale: 0 }).notNull(),
+    priceJpy: numeric("price_jpy", { precision: 14, scale: 0 }).notNull(), // 円換算（JP は現地価格そのもの）
+    country: text("country").notNull().default("JP"), // 市場の国（日本以外の二次流通も記録可）
+    currency: text("currency").notNull().default("JPY"),
+    priceLocal: numeric("price_local", { precision: 14, scale: 2 }), // 現地通貨の価格（JPY 以外）
+    fxJpyPerUnit: numeric("fx_jpy_per_unit", { precision: 18, scale: 8 }), // 円換算に使ったレート
     condition: text("condition", { enum: CONDITIONS }).notNull(),
     accessories: text("accessories"),
     observedAt: date("observed_at").notNull(),
@@ -201,6 +207,8 @@ export const marketObservations = pgTable(
     externalRef: text("external_ref"), // 取引ID等（重複検出用）
     evidenceId: integer("evidence_id").notNull().references(() => sourceEvidence.id),
     importBatchId: integer("import_batch_id").references(() => importBatches.id),
+    retractedAt: timestamp("retracted_at", { withTimezone: true }), // 誤データの取り消し（削除しない）
+    retractReason: text("retract_reason"),
     createdAt: createdAt(),
   },
   (t) => [index("market_variant_idx").on(t.variantId)],
@@ -210,11 +218,15 @@ export const buybackQuotes = pgTable("buyback_quotes", {
   id: serial("id").primaryKey(),
   variantId: text("variant_id").notNull().references(() => productVariants.id),
   shop: text("shop").notNull(),
+  /** PRICE_LIST: 業者の公開買取価格表 / INDIVIDUAL_APPRAISAL: 個別査定（実物・写真） */
+  quoteKind: text("quote_kind", { enum: ["PRICE_LIST", "INDIVIDUAL_APPRAISAL"] }).notNull().default("PRICE_LIST"),
   priceJpy: numeric("price_jpy", { precision: 14, scale: 0 }).notNull(),
   condition: text("condition", { enum: CONDITIONS }).notNull(),
   quotedAt: date("quoted_at").notNull(),
   evidenceId: integer("evidence_id").notNull().references(() => sourceEvidence.id),
   importBatchId: integer("import_batch_id").references(() => importBatches.id),
+  retractedAt: timestamp("retracted_at", { withTimezone: true }),
+  retractReason: text("retract_reason"),
   createdAt: createdAt(),
 });
 
@@ -382,4 +394,19 @@ export const variantPlans = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("plans_variant_idx").on(t.variantId)],
+);
+
+/** 変更履歴（手動編集・取り消しの監査ログ） */
+export const changeLog = pgTable(
+  "change_log",
+  {
+    id: serial("id").primaryKey(),
+    entity: text("entity").notNull(), // products / product_variants / retail_prices / market_observations / buyback_quotes ...
+    entityId: text("entity_id").notNull(),
+    action: text("action", { enum: ["CREATE", "UPDATE", "RETRACT"] }).notNull(),
+    changes: jsonb("changes").$type<Record<string, { before: unknown; after: unknown }>>().notNull(),
+    reason: text("reason"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("change_log_entity_idx").on(t.entity, t.entityId)],
 );

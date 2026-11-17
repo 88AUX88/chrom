@@ -106,6 +106,8 @@ export interface MarketSummary {
   sellThroughRate: null; // 出品母数がないため常に算出不能（将来: 母数データ取込時に算出）
   sellThroughNote: string;
   latestSoldAt: string | null;
+  /** この仕様の観測データが1件でもあるか。false のとき「成約0件」ではなく「データ未取得（不明）」 */
+  hasAnyData: boolean;
 }
 
 /** 集計対象となる成約（同一仕様・状態・期間内・成約日あり・重複除去済み） */
@@ -145,6 +147,7 @@ export function summarizeMarket(
     sellThroughRate: null,
     sellThroughNote: "算出不能: 対象期間の正確な出品母数データがありません",
     latestSoldAt,
+    hasAnyData: sameSpec.length > 0,
   };
 }
 

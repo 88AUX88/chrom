@@ -113,3 +113,21 @@ describe("CSV出力", () => {
     expect(csvCell(null)).toBe("");
   });
 });
+
+describe("海外の二次流通・査定種別", () => {
+  const H = "variant_id,platform,kind,condition,source_url,source_name,source_type,reliability,observed_at,sold_at,country,currency,price_local,fx_jpy_per_unit,price_jpy\n";
+  it("米国 eBay の成約を現地通貨＋換算レートで受理", () => {
+    const r = validateCsv("market_observations", enc(H + "ch-baby-fat-cross-charm-silver,EBAY,REPORTED_SOLD,NEW,https://www.ebay.com/itm/1,eBay,MARKETPLACE,REPORTED,2026-11-10,2026-11-09,US,USD,350,150,\n"), ctx());
+    expect(r.accepted).toHaveLength(1);
+  });
+  it("換算レートなし・円価格の同時指定・日本の販売先の国違いを隔離", () => {
+    const r = validateCsv("market_observations", enc(H +
+      "ch-baby-fat-cross-charm-silver,EBAY,REPORTED_SOLD,NEW,https://www.ebay.com/itm/2,eBay,MARKETPLACE,REPORTED,2026-11-10,2026-11-09,US,USD,350,,\n" +
+      "ch-baby-fat-cross-charm-silver,EBAY,REPORTED_SOLD,NEW,https://www.ebay.com/itm/3,eBay,MARKETPLACE,REPORTED,2026-11-10,2026-11-09,US,USD,350,150,52500\n" +
+      "ch-baby-fat-cross-charm-silver,SNKRDUNK,ASK,NEW,https://snkrdunk.com/4,S,MARKETPLACE,REPORTED,2026-11-10,,US,JPY,,,52000\n"), ctx());
+    expect(r.accepted).toHaveLength(0);
+    expect(r.quarantine[0].reasons.join()).toContain("fx_jpy_per_unit");
+    expect(r.quarantine[1].reasons.join()).toContain("price_jpy を空に");
+    expect(r.quarantine[2].reasons.join()).toContain("日本の販売先");
+  });
+});

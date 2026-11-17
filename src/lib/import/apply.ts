@@ -15,7 +15,7 @@ async function existingKeys(kind: ImportKind): Promise<Set<string>> {
   if (kind === "products") (await db.select({ id: s.products.id }).from(s.products)).forEach((r) => add({ id: r.id }));
   if (kind === "variants") (await db.select({ id: s.productVariants.id }).from(s.productVariants)).forEach((r) => add({ id: r.id }));
   if (kind === "market_observations") {
-    const rows = await db.execute<Row>(sql`select variant_id, platform, kind, price_jpy::text, condition, coalesce(sold_at::text,'') sold_at, observed_at::text, coalesce(external_ref,'') external_ref from market_observations`);
+    const rows = await db.execute<Row>(sql`select variant_id, platform, kind, case when currency = 'JPY' then price_jpy::text else price_local::text end as price_jpy, condition, coalesce(sold_at::text,'') sold_at, observed_at::text, coalesce(external_ref,'') external_ref from market_observations`);
     rows.rows.forEach(add);
   }
   if (kind === "retail_prices") {
@@ -122,7 +122,15 @@ export async function importCsv(kind: ImportKind, filename: string, bytes: Uint8
             variantId: r.variant_id,
             platform: r.platform as (typeof s.MARKET_PLATFORMS)[number],
             kind: r.kind as s.MarketKind,
-            priceJpy: num(r.price_jpy),
+            ...((r.currency || "JPY") === "JPY"
+              ? { priceJpy: num(r.price_jpy), country: r.country || "JP", currency: "JPY" }
+              : {
+                  priceJpy: parseStrictDecimal(r.price_local)!.times(parseStrictDecimal(r.fx_jpy_per_unit)!).toDecimalPlaces(0).toString(),
+                  country: r.country || "JP",
+                  currency: r.currency,
+                  priceLocal: num(r.price_local),
+                  fxJpyPerUnit: num(r.fx_jpy_per_unit),
+                }),
             condition: r.condition as s.Condition,
             accessories: opt(r.accessories),
             observedAt: r.observed_at,
@@ -137,6 +145,7 @@ export async function importCsv(kind: ImportKind, filename: string, bytes: Uint8
           await tx.insert(s.buybackQuotes).values({
             variantId: r.variant_id,
             shop: r.shop,
+            quoteKind: (r.quote_kind || "PRICE_LIST") as "PRICE_LIST" | "INDIVIDUAL_APPRAISAL",
             priceJpy: num(r.price_jpy),
             condition: r.condition as s.Condition,
             quotedAt: r.observed_at,

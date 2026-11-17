@@ -98,7 +98,7 @@ export async function analyze(req: AnalysisRequest, today = new Date()): Promise
     getExpenseProfile(),
     currentFeeRules(),
     currentTaxAssumptions(),
-    marketObservationsFor(v.product.id),
+    marketObservationsFor(v.product.id).then((rows) => rows.filter((o) => o.country === "JP")), // 売却は日本国内
     buybackFor(req.variantId),
     latestFx(req.currency),
     latestPlan(req.variantId),

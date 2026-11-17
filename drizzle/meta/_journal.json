@@ -15,6 +15,13 @@
       "when": 1794948662823,
       "tag": "0001_variant_plans",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794952322980,
+      "tag": "0002_world_market_audit",
+      "breakpoints": true
     }
   ]
 }

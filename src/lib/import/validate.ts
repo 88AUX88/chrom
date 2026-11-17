@@ -57,12 +57,12 @@ export const TEMPLATE_COLUMNS: Record<ImportKind, { required: string[]; optional
     optional: ["city", "store", "video_published_at", "video_timestamp", "evidence_notes"],
   },
   market_observations: {
-    required: ["variant_id", "platform", "kind", "price_jpy", "condition", ...EVIDENCE_COLS],
-    optional: ["sold_at", "listed_at", "accessories", "external_ref", "video_published_at", "video_timestamp", "evidence_notes"],
+    required: ["variant_id", "platform", "kind", "condition", ...EVIDENCE_COLS],
+    optional: ["price_jpy", "country", "currency", "price_local", "fx_jpy_per_unit", "sold_at", "listed_at", "accessories", "external_ref", "video_published_at", "video_timestamp", "evidence_notes"],
   },
   buyback_quotes: {
     required: ["variant_id", "shop", "price_jpy", "condition", ...EVIDENCE_COLS],
-    optional: ["evidence_notes"],
+    optional: ["quote_kind", "evidence_notes"],
   },
   fx_rates: { required: ["currency", "jpy_per_unit", "as_of", "source"], optional: [] },
 };
@@ -100,7 +100,7 @@ export function dedupeKey(kind: ImportKind, r: Row): string {
     case "market_observations":
       return r.external_ref
         ? `${kind}|${r.platform}|ref|${r.external_ref}`
-        : `${kind}|${r.variant_id}|${r.platform}|${r.kind}|${n(r.price_jpy)}|${r.sold_at || r.observed_at}|${r.condition}`;
+        : `${kind}|${r.variant_id}|${r.platform}|${r.kind}|${n(r.price_jpy || r.price_local)}|${r.sold_at || r.observed_at}|${r.condition}`;
     case "buyback_quotes":
       return `${kind}|${r.variant_id}|${r.shop}|${n(r.price_jpy)}|${r.observed_at}|${r.condition}`;
     case "fx_rates":
@@ -186,7 +186,19 @@ export function validateRow(kind: ImportKind, r: Row, ctx: RefContext): string[]
       if (!ctx.variantIds.has(r.variant_id)) errs.push(`variant_id が存在しません: ${r.variant_id}`);
       if (!oneOf(MARKET_PLATFORMS, r.platform)) errs.push(`platform が不正: ${r.platform}`);
       if (!oneOf(MARKET_KINDS, r.kind)) errs.push(`kind が不正（RETAIL/BUYBACK は別ファイル、SOLD_OUT 表示は不可）: ${r.kind}`);
-      positive("price_jpy", r.price_jpy, errs);
+      {
+        const country = r.country || "JP";
+        const currency = r.currency || "JPY";
+        if (!/^([A-Z]{2}|EU)$/.test(country)) errs.push(`country は ISO 2文字: ${country}`);
+        if (!CURRENCIES.includes(currency)) errs.push(`未対応の通貨: ${currency}`);
+        if (currency === "JPY") positive("price_jpy", r.price_jpy, errs);
+        else {
+          // 海外の二次流通: 現地価格と換算レートを明示させる（暗黙の換算をしない）
+          positive("price_local", r.price_local, errs);
+          positive("fx_jpy_per_unit", r.fx_jpy_per_unit, errs);
+          if (r.price_jpy) errs.push("JPY 以外は price_jpy を空にしてください（price_local × fx_jpy_per_unit で計算します）");
+        }
+      }
       if (!oneOf(CONDITIONS, r.condition)) errs.push(`condition が不正: ${r.condition}`);
       validateEvidence(r, ctx.today, errs);
       if (r.kind?.endsWith("_SOLD")) {
@@ -197,9 +209,12 @@ export function validateRow(kind: ImportKind, r: Row, ctx: RefContext): string[]
       if (r.kind === "VERIFIED_SOLD" && r.reliability !== "VERIFIED") errs.push("VERIFIED_SOLD は reliability=VERIFIED が必要");
       if (r.listed_at && !isValidDate(r.listed_at)) errs.push("listed_at が日付ではありません");
       if (r.price_jpy && parseStrictDecimal(r.price_jpy)?.lessThan(1000)) errs.push("price_jpy が1,000円未満（桁誤りの疑い）");
+      if (["SNKRDUNK", "BUYMA", "RINKAN", "BRING", "KOMEHYO", "MERCARI"].includes(r.platform) && (r.country || "JP") !== "JP")
+        errs.push(`${r.platform} は日本の販売先です。country を確認してください`);
       break;
     case "buyback_quotes":
       if (!ctx.variantIds.has(r.variant_id)) errs.push(`variant_id が存在しません: ${r.variant_id}`);
+      if (r.quote_kind && !["PRICE_LIST", "INDIVIDUAL_APPRAISAL"].includes(r.quote_kind)) errs.push("quote_kind は PRICE_LIST / INDIVIDUAL_APPRAISAL");
       if (!r.shop) errs.push("shop がありません");
       positive("price_jpy", r.price_jpy, errs);
       if (!oneOf(CONDITIONS, r.condition)) errs.push(`condition が不正: ${r.condition}`);

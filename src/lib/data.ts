@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import * as s from "@/db/schema";
 import { DEFAULT_DECISION_SETTINGS, type DecisionSettings } from "./decide/engine";
@@ -103,11 +103,11 @@ export async function retailPricesFor(variantId: string) {
     })
     .from(s.retailPrices)
     .innerJoin(s.sourceEvidence, eq(s.retailPrices.evidenceId, s.sourceEvidence.id))
-    .where(eq(s.retailPrices.variantId, variantId))
+    .where(and(eq(s.retailPrices.variantId, variantId), isNull(s.retailPrices.retractedAt)))
     .orderBy(asc(s.retailPrices.country), desc(s.retailPrices.observedAt));
 }
 
-export async function marketObservationsFor(productId: string): Promise<(Observation & { sourceName: string; reliability: string })[]> {
+export async function marketObservationsFor(productId: string): Promise<(Observation & { sourceName: string; reliability: string; country: string; currency: string; priceLocal: string | null; fxJpyPerUnit: string | null; listedAt: string | null })[]> {
   const db = await getDb();
   const rows = await db
     .select({
@@ -120,6 +120,11 @@ export async function marketObservationsFor(productId: string): Promise<(Observa
       observedAt: s.marketObservations.observedAt,
       soldAt: s.marketObservations.soldAt,
       externalRef: s.marketObservations.externalRef,
+      country: s.marketObservations.country,
+      currency: s.marketObservations.currency,
+      priceLocal: s.marketObservations.priceLocal,
+      fxJpyPerUnit: s.marketObservations.fxJpyPerUnit,
+      listedAt: s.marketObservations.listedAt,
       evidenceUrl: s.sourceEvidence.url,
       sourceName: s.sourceEvidence.sourceName,
       reliability: s.sourceEvidence.reliability,
@@ -127,7 +132,7 @@ export async function marketObservationsFor(productId: string): Promise<(Observa
     .from(s.marketObservations)
     .innerJoin(s.sourceEvidence, eq(s.marketObservations.evidenceId, s.sourceEvidence.id))
     .innerJoin(s.productVariants, eq(s.marketObservations.variantId, s.productVariants.id))
-    .where(eq(s.productVariants.productId, productId))
+    .where(and(eq(s.productVariants.productId, productId), isNull(s.marketObservations.retractedAt)))
     .orderBy(desc(s.marketObservations.observedAt));
   return rows;
 }
@@ -135,10 +140,10 @@ export async function marketObservationsFor(productId: string): Promise<(Observa
 export async function buybackFor(variantId: string) {
   const db = await getDb();
   return db
-    .select({ id: s.buybackQuotes.id, shop: s.buybackQuotes.shop, priceJpy: s.buybackQuotes.priceJpy, condition: s.buybackQuotes.condition, quotedAt: s.buybackQuotes.quotedAt, url: s.sourceEvidence.url, reliability: s.sourceEvidence.reliability })
+    .select({ id: s.buybackQuotes.id, shop: s.buybackQuotes.shop, quoteKind: s.buybackQuotes.quoteKind, priceJpy: s.buybackQuotes.priceJpy, condition: s.buybackQuotes.condition, quotedAt: s.buybackQuotes.quotedAt, url: s.sourceEvidence.url, reliability: s.sourceEvidence.reliability })
     .from(s.buybackQuotes)
     .innerJoin(s.sourceEvidence, eq(s.buybackQuotes.evidenceId, s.sourceEvidence.id))
-    .where(eq(s.buybackQuotes.variantId, variantId))
+    .where(and(eq(s.buybackQuotes.variantId, variantId), isNull(s.buybackQuotes.retractedAt)))
     .orderBy(desc(s.buybackQuotes.quotedAt));
 }
 
@@ -199,10 +204,12 @@ export async function counts() {
   const r = await db.execute<Record<string, number>>(sql`select
     (select count(*)::int from products) as products,
     (select count(*)::int from product_variants) as variants,
-    (select count(*)::int from retail_prices) as retail,
-    (select count(*)::int from market_observations where kind in ('VERIFIED_SOLD','REPORTED_SOLD')) as sold,
-    (select count(*)::int from market_observations where kind = 'ASK') as ask,
-    (select count(*)::int from buyback_quotes) as buyback,
+    (select count(*)::int from retail_prices where retracted_at is null) as retail,
+    (select count(*)::int from retail_prices r join source_evidence e on e.id = r.evidence_id where r.retracted_at is null and e.reliability = 'VERIFIED' and r.price_kind in ('OFFICIAL','RECEIPT')) as retail_verified,
+    (select count(*)::int from market_observations where retracted_at is null and kind in ('VERIFIED_SOLD','REPORTED_SOLD')) as sold,
+    (select count(*)::int from market_observations where retracted_at is null and kind = 'VERIFIED_SOLD') as sold_verified,
+    (select count(*)::int from market_observations where retracted_at is null and kind = 'ASK') as ask,
+    (select count(*)::int from buyback_quotes where retracted_at is null) as buyback,
     (select count(*)::int from fx_rates) as fx,
     (select count(*)::int from products where catalog_status = 'UNVERIFIED') as unverified_products,
     (select count(*)::int from product_images) as images,

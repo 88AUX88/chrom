@@ -116,9 +116,14 @@ export function decide(input: DecisionInput, st: DecisionSettings): DecisionOutp
   const dataSufficient = soldN >= st.minSoldCount;
   if (!dataSufficient)
     blocker(
-      `同一仕様の成約が${m.windowDays}日間で${soldN}件（必要${st.minSoldCount}件）`,
+      m.hasAnyData === false
+        ? `同一仕様の市場データが未取得のため成約件数は不明（必要${st.minSoldCount}件）`
+        : `同一仕様の成約が${m.windowDays}日間で${soldN}件（必要${st.minSoldCount}件）`,
       "同一仕様（素材・サイズ・状態）の成約データを追加する",
     );
+  // 流動性（資金回収）: 直近の成約ペースが遅い場合は警告
+  if (dataSufficient && soldN / Math.max(1, m.windowDays / 30) < 1)
+    reasons.push({ level: "WARNING", message: "成約ペースが月1件未満。資金回収に時間がかかる可能性" });
   else reasons.push({ level: "OK", message: `同一仕様の成約 ${soldN}件（${m.windowDays}日間）` });
   if (m.latestSoldAt === null && m.ask.count > 0)
     reasons.push({ level: "WARNING", message: "出品価格しかありません（出品価格は売却見込に使用しません）" });

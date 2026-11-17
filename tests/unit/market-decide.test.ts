@@ -178,3 +178,17 @@ describe("間隔反復", () => {
     expect(r3.intervalDays).toBeGreaterThan(3);
   });
 });
+
+describe("データ未取得と成約0件の区別", () => {
+  it("観測データがない仕様は hasAnyData=false、ASKだけある仕様は true（成約0件）", () => {
+    const none = summarizeMarket([], "v-silver", "NEW_UNUSED", 90, TODAY);
+    expect(none.hasAnyData).toBe(false);
+    const askOnly = summarizeMarket([ob({ kind: "ASK", soldAt: null })], "v-silver", "NEW_UNUSED", 90, TODAY);
+    expect(askOnly.hasAnyData).toBe(true);
+    expect(askOnly.sold.count).toBe(0);
+    const d1 = decide(decisionInput({ market: none, saleScenarios: saleScenarios(none, 0.1, null), results: { CONSERVATIVE: null, STANDARD: null, OPTIMISTIC: null }, profitAtMaxSold: null }), DEFAULT_DECISION_SETTINGS);
+    expect(d1.reasons.map((r) => r.message).join()).toContain("未取得のため成約件数は不明");
+    const d2 = decide(decisionInput({ market: askOnly, saleScenarios: saleScenarios(askOnly, 0.1, null), results: { CONSERVATIVE: null, STANDARD: null, OPTIMISTIC: null }, profitAtMaxSold: null }), DEFAULT_DECISION_SETTINGS);
+    expect(d2.reasons.map((r) => r.message).join()).toContain("0件");
+  });
+});
