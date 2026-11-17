@@ -103,3 +103,13 @@ describe("CSV取込検証", () => {
     expect(r.quarantine[0].reasons.join()).toContain("stone_type");
   });
 });
+
+import { csvCell } from "@/lib/export";
+describe("CSV出力", () => {
+  it("数式インジェクション対策と引用", () => {
+    expect(csvCell("=HYPERLINK(1)")).toBe("'=HYPERLINK(1)");
+    expect(csvCell("-12000")).toBe("-12000");
+    expect(csvCell('a,"b"')).toBe('"a,""b"""');
+    expect(csvCell(null)).toBe("");
+  });
+});

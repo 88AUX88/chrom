@@ -1,26 +1,26 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --color-ink: #0a0a0b;
+  --color-panel: #141416;
+  --color-line: #2a2a2e;
+  --color-silver: #c9c9d1;
+  --color-mute: #8b8b94;
+  --color-buy: #7ee2a8;
+  --color-hold: #f2c46d;
+  --color-pass: #ff8a80;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Segoe UI", sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
+html { color-scheme: dark; -webkit-text-size-adjust: 100%; }
+body { background: var(--color-ink); color: #f4f4f6; font-family: var(--font-sans); }
+.tnum { font-variant-numeric: tabular-nums; }
+input, select, textarea { font-size: 16px; } /* iOS のズーム防止 */
+.field { @apply w-full rounded-lg border border-line bg-panel px-3 py-2.5 text-white outline-none focus:border-silver; }
+.btn { @apply inline-flex min-h-11 items-center justify-center rounded-lg border border-line px-4 py-2 text-sm font-medium text-white active:opacity-70; }
+.btn-primary { @apply inline-flex min-h-11 items-center justify-center rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black active:opacity-70; }
+.card { @apply rounded-xl border border-line bg-panel p-4; }
+.h-label { @apply text-[11px] font-semibold tracking-[0.18em] text-mute uppercase; }
+table.data { @apply w-full text-sm; }
+table.data th { @apply py-1.5 pr-2 text-left text-[11px] font-medium text-mute; }
+table.data td { @apply border-t border-line py-2 pr-2 align-top; }

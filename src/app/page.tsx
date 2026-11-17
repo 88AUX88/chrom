@@ -1,103 +1,67 @@
-import Image from "next/image";
+import Link from "next/link";
+import { allLatestFx, counts, currentFeeRules, currentTaxAssumptions, getExpenseProfile, getBusinessTaxStatus, recentScenarios } from "@/lib/data";
+import { DecisionBadge, Section, Stat, Warn } from "@/components/ui";
+import { identifyConfigured } from "@/lib/identify/identify";
 
-export default function Home() {
+export default async function Dashboard() {
+  const [c, fx, fees, taxes, expense, bts, recent] = await Promise.all([counts(), allLatestFx(), currentFeeRules(), currentTaxAssumptions(), getExpenseProfile(), getBusinessTaxStatus(), recentScenarios(5)]);
+  const issues: string[] = [];
+  if (c.retail === 0) issues.push("海外正規価格のデータがありません（取込が必要）");
+  if (c.sold === 0) issues.push("国内の成約データがありません（取込が必要）");
+  if (fx.length === 0) issues.push("為替レートが未登録です");
+  else if (fx.some((r) => Date.now() - new Date(r.as_of).getTime() > 48 * 3600000)) issues.push("48時間以上前の為替レートがあります");
+  if (taxes.some((t) => t.key.startsWith("CUSTOMS_DUTY_RATE") && (t.status === "UNVERIFIED" || t.value === null))) issues.push("関税率が未確認です");
+  if (fees.some((f) => f.platform !== "BUYBACK" && (f.status === "UNVERIFIED" || f.fee_rate === null))) issues.push("販売手数料率が未確認です");
+  if (!expense.data.confirmed) issues.push("経費プロファイルが仮置きのままです");
+  if (bts === "UNKNOWN") issues.push("消費税の課税事業者区分が未設定です");
+  if (c.unverified_products > 0) issues.push(`未検証のカタログ商品 ${c.unverified_products} 件`);
+  if (!identifyConfigured()) issues.push("画像認識APIが未設定です（手動検索は利用可能）");
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <main>
+      <header className="mb-6">
+        <p className="h-label">Luxury Market Intelligence</p>
+        <h1 className="mt-1 text-xl font-extralight tracking-[0.15em]">CHROME HEARTS</h1>
+      </header>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      <Link href="/scan" className="flex h-36 flex-col items-center justify-center rounded-2xl bg-white text-black active:opacity-80">
+        <svg viewBox="0 0 24 24" className="h-10 w-10" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden><path d="M3 8a2 2 0 012-2h2l2-2h6l2 2h2a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><circle cx="12" cy="13" r="4" /></svg>
+        <span className="mt-2 text-lg font-semibold tracking-[0.3em]">SCAN</span>
+        <span className="text-xs">撮影して商品を特定</span>
+      </Link>
+
+      <form action="/products" className="mt-3">
+        <input name="q" placeholder="商品名・読みで検索（例: ペーパーチェーン）" className="field" />
+      </form>
+
+      {issues.length > 0 && (
+        <Section title="判定前に必要な確認">
+          <div className="space-y-2">{issues.map((i) => <Warn key={i}>{i}</Warn>)}</div>
+          <div className="mt-2 flex gap-2"><Link className="btn" href="/settings">設定</Link><Link className="btn" href="/import">データ取込</Link></div>
+        </Section>
+      )}
+
+      <Section title="データ状況">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Stat label="商品" value={c.products} sub={`仕様 ${c.variants}`} />
+          <Stat label="海外価格" value={c.retail} sub="出典付き" />
+          <Stat label="成約" value={c.sold} sub={`出品 ${c.ask}`} />
+          <Stat label="買取査定" value={c.buyback} sub={`為替 ${fx.length}通貨`} />
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      </Section>
+
+      <Section title="最近の判定" right={<Link href="/history" className="text-xs text-mute">すべて ›</Link>}>
+        {recent.length === 0 ? <p className="text-sm text-mute">まだ判定はありません。</p> : (
+          <ul className="card divide-y divide-line p-0">
+            {recent.map((r) => (
+              <li key={r.id} className="flex items-center justify-between px-4 py-3 text-sm">
+                <span>{r.productName}<span className="block text-xs text-mute">{new Date(r.createdAt).toLocaleString("ja-JP")}</span></span>
+                <DecisionBadge d={r.decision} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+    </main>
   );
 }

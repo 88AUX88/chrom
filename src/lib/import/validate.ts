@@ -87,21 +87,24 @@ function isValidDate(s: string): boolean {
 
 const oneOf = <T extends readonly string[]>(arr: T, v: string) => (arr as readonly string[]).includes(v);
 
+/** 数値表記ゆれ（"400" と "400.00"）を同一視するための正規化 */
+const n = (v: string | undefined) => (v ? parseStrictDecimal(v)?.toString() ?? v : "");
+
 export function dedupeKey(kind: ImportKind, r: Row): string {
   switch (kind) {
     case "products":
     case "variants":
       return `${kind}|${r.id}`;
     case "retail_prices":
-      return `${kind}|${r.variant_id}|${r.country}|${r.store ?? ""}|${r.currency}|${r.amount}|${r.observed_at}|${r.price_kind}`;
+      return `${kind}|${r.variant_id}|${r.country}|${r.store ?? ""}|${r.currency}|${n(r.amount)}|${r.observed_at}|${r.price_kind}`;
     case "market_observations":
       return r.external_ref
         ? `${kind}|${r.platform}|ref|${r.external_ref}`
-        : `${kind}|${r.variant_id}|${r.platform}|${r.kind}|${r.price_jpy}|${r.sold_at || r.observed_at}|${r.condition}`;
+        : `${kind}|${r.variant_id}|${r.platform}|${r.kind}|${n(r.price_jpy)}|${r.sold_at || r.observed_at}|${r.condition}`;
     case "buyback_quotes":
-      return `${kind}|${r.variant_id}|${r.shop}|${r.price_jpy}|${r.observed_at}|${r.condition}`;
+      return `${kind}|${r.variant_id}|${r.shop}|${n(r.price_jpy)}|${r.observed_at}|${r.condition}`;
     case "fx_rates":
-      return `${kind}|${r.currency}|${r.as_of}`;
+      return `${kind}|${r.currency}|${new Date(r.as_of).getTime() || r.as_of}`;
   }
 }
 

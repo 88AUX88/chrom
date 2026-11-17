@@ -146,3 +146,35 @@ describe("BUY/HOLD/PASS", () => {
     expect(d.decision).toBe("PASS");
   });
 });
+
+import { filterToCatalog } from "@/lib/identify/identify";
+import { schedule } from "@/lib/learn/cards";
+describe("画像認識の候補フィルタ", () => {
+  it("カタログ外IDを破棄し、重複除去・最大3件", () => {
+    const out = filterToCatalog(
+      { observed: { category_guess: "charm", color_tone: "unclear", stones_visible: "no", engravings_seen: "", photo_quality_issues: "" },
+        candidates: [
+          { product_id: "made-up", reason: "", confidence: "high" },
+          { product_id: "a", reason: "", confidence: "high" },
+          { product_id: "a", reason: "", confidence: "low" },
+          { product_id: "b", reason: "", confidence: "low" },
+        ], possibly_not_in_catalog: false },
+      new Set(["a", "b", "c"]),
+    );
+    expect(out.output.candidates.map((c) => c.product_id)).toEqual(["a", "b"]);
+    expect(out.dropped).toEqual(["made-up"]);
+    expect(out.output.possibly_not_in_catalog).toBe(true);
+  });
+});
+describe("間隔反復", () => {
+  it("不正解は当日再出題、正解で間隔が伸びる", () => {
+    const now = new Date("2026-11-17T00:00:00Z");
+    const w = schedule({ ease: 2.5, intervalDays: 3, reps: 2, lapses: 0 }, 0, now);
+    expect(w.intervalDays).toBe(0);
+    expect(w.lapses).toBe(1);
+    const r1 = schedule({ ease: 2.5, intervalDays: 0, reps: 0, lapses: 0 }, 1, now);
+    const r3 = schedule({ ease: 2.5, intervalDays: 3, reps: 2, lapses: 0 }, 1, now);
+    expect(r1.intervalDays).toBe(1);
+    expect(r3.intervalDays).toBeGreaterThan(3);
+  });
+});
