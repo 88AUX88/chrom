@@ -80,3 +80,9 @@
 2. 実機 iPhone / iPad Safari での確認（カメラ・ホーム画面追加）
 3. 関税1,000円未満切捨ての規定確認
 4. 画像認識 API・本番公開（費用承認後）
+
+## 専門サブエージェント（2026-11-17 追加）
+- `.claude/agents/` に 10 体: ch-app-builder / ch-audit-qa / ch-data-pipeline / ch-unit-economics / ch-identity / ch-global-prices / ch-liquidity / ch-risk-compliance / ch-learning-editor / ch-trading-ops
+- 振り分けルールは CLAUDE.md 末尾。permissionMode は未設定（メインの権限設定を継承）、各担当に必要なツールだけを許可
+- 検証: YAML 構文・必須項目・ツール名・モデル名を検査（エラー0）、`claude -p --agent <名前>` で 10 体すべての読込を確認（警告0）
+- 注意: このセッションの開始後に作ったディレクトリのため、メインセッションの Agent 一覧への反映は新しいセッションから

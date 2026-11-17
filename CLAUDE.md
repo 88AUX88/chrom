@@ -37,3 +37,24 @@ Vitest · Playwright
 ## 参照
 docs/AUDIT.md（現状監査）· docs/ARCHITECTURE.md · docs/CALCULATIONS.md · docs/DATA_RULES.md ·
 docs/DEPLOY.md · docs/COSTS.md · docs/STATUS.md（受入基準・未完了・既知の問題・優先順位）· docs/HANDOFF_FOR_GPT.md
+
+## 専門サブエージェントと振り分け（総司令塔 = メインの Claude Code）
+定義: `.claude/agents/ch-*.md`（10 体）。メインセッションが依頼を分解し、必要な担当だけを呼ぶ。無駄な並列起動はしない。
+| 依頼の内容 | 担当 |
+|---|---|
+| 画面・機能の実装、不具合修正、スキーマ変更、E2E | ch-app-builder |
+| 実装・取込後の独立監査、リリース前確認（読み取り専用） | ch-audit-qa |
+| データ取込・CSV 整形・外部 API と規約の確認・更新手順 | ch-data-pipeline |
+| 関税・輸入消費税・手数料・利益・ROI・最大仕入許容価格 | ch-unit-economics |
+| 商品名・読み・型番・素材・仕様・画像の同一性 | ch-identity |
+| 米国定価・各国価格・ASK/SOLD・買取価格の調査と区分 | ch-global-prices |
+| 成約件数・販売日数・在庫リスク・換金性 | ch-liquidity |
+| 真贋・輸入法務・古物営業・販売規約・表示・顧客保護 | ch-risk-compliance |
+| 写真教材・暗記カード・クイズ・学習計画 | ch-learning-editor |
+| 買付計画・販売運用・在庫・卸/FC・業務自動化 | ch-trading-ops |
+
+運用ルール:
+- 計算・区分・識別・法務の「仕様」は各専門担当が決め、実装は ch-app-builder が行う（同じ計算を二重に実装しない）。
+- コード変更やデータ取込の後は ch-audit-qa に監査させ、指摘を修正して再テストしてから完了とする。
+- サブエージェントの報告は検証前の材料として扱う。数値・出典・テスト結果は元データで確認してからユーザーに伝える。
+- 外部課金・実購入・送金・本番公開・破壊的変更は、どの担当でもユーザーの事前承認が必要。
