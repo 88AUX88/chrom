@@ -100,6 +100,7 @@ function decisionInput(over: Partial<DecisionInput> = {}): DecisionInput {
     dutyRateStatus: "USER_CONFIRMED",
     feeRuleStatus: "USER_CONFIRMED",
     businessTaxKnown: true,
+    expenseProfileConfirmed: true,
     market,
     saleScenarios: scen,
     results: { CONSERVATIVE: calc(scen[0].priceJpy), STANDARD: calc(scen[1].priceJpy), OPTIMISTIC: calc(scen[2].priceJpy) },
@@ -129,6 +130,9 @@ describe("BUY/HOLD/PASS", () => {
   });
   it("為替が古ければ HOLD", () => {
     expect(decide(decisionInput({ fxAgeHours: 200 }), DEFAULT_DECISION_SETTINGS).decision).toBe("HOLD");
+  });
+  it("経費プロファイル未確認なら HOLD", () => {
+    expect(decide(decisionInput({ expenseProfileConfirmed: false }), DEFAULT_DECISION_SETTINGS).decision).toBe("HOLD");
   });
   it("個人使用モードは HOLD", () => {
     expect(decide(decisionInput({ importMode: "PERSONAL" }), DEFAULT_DECISION_SETTINGS).decision).toBe("HOLD");

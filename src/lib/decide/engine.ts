@@ -46,6 +46,7 @@ export interface DecisionInput {
   dutyRateStatus: AssumptionStatus;
   feeRuleStatus: AssumptionStatus;
   businessTaxKnown: boolean;
+  expenseProfileConfirmed: boolean;
   market: MarketSummary;
   saleScenarios: SaleScenarioPrice[];
   results: { CONSERVATIVE: ProfitOutcome | null; STANDARD: ProfitOutcome | null; OPTIMISTIC: ProfitOutcome | null };
@@ -100,6 +101,8 @@ export function decide(input: DecisionInput, st: DecisionSettings): DecisionOutp
     blocker("個人使用の特例で計算されています。販売目的の買付には使えません", "輸入区分を「商業輸入」にする");
   if (input.dutyRateStatus === "UNVERIFIED") blocker("関税率が未確認です", "関税率（HSコード）を税関資料で確認し設定で確定する");
   if (input.feeRuleStatus === "UNVERIFIED") blocker("販売手数料率が未確認です", "販売先の最新手数料を確認し設定で確定する");
+  if (!input.expenseProfileConfirmed)
+    blocker("経費プロファイル（カード手数料・送料・旅費等）が未確認の仮置き値です", "設定で経費を確認し「確認済み」にする");
   if (!input.businessTaxKnown)
     reasons.push({ level: "WARNING", message: "消費税の課税事業者区分が未設定（低い方の利益で計算）" });
 

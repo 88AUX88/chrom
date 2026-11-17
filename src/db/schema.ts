@@ -50,6 +50,11 @@ export const products = pgTable(
     catalogStatus: text("catalog_status", { enum: CATALOG_STATUS }).notNull().default("UNVERIFIED"),
     distinguishingFeatures: text("distinguishing_features"), // 画像認識・人間確認用の特徴
     confusableWith: jsonb("confusable_with").$type<string[]>().notNull().default([]), // 誤認しやすい product id
+    /** 仕様選択肢（実在の確認は別。variant は人間が選択した時点で作成） */
+    variantOptions: jsonb("variant_options")
+      .$type<{ materials: string[]; sizes: string[]; stones: boolean[] }>()
+      .notNull()
+      .default({ materials: ["SILVER_925"], sizes: [], stones: [false] }),
     notes: text("notes"),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -248,7 +253,7 @@ export const feeRules = pgTable("fee_rules", {
 export const taxAssumptions = pgTable("tax_assumptions", {
   id: serial("id").primaryKey(),
   key: text("key").notNull(), // 例: CUSTOMS_DUTY_RATE:7113.11
-  value: numeric("value", { precision: 10, scale: 6 }), // 不明なら NULL
+  value: numeric("value", { precision: 18, scale: 6 }), // 不明なら NULL
   status: text("status", { enum: ASSUMPTION_STATUS }).notNull(),
   evidenceUrl: text("evidence_url"),
   notes: text("notes"),
