@@ -22,7 +22,8 @@ export default async function Candidates() {
   const rows = await Promise.all(
     ids.map(async (v) => {
       const [s, obs, bb] = await Promise.all([summaryFor(v.id), marketObservationsFor(v.product_id), buybackFor(v.id)]);
-      const liq = analyzeLiquidity(obs.filter((o) => o.country === "JP"), v.id, "NEW_UNUSED", today, settings.marketMaxAgeDays, bb.length > 0);
+      const freshBb = bb.filter((b) => Math.floor((Date.parse(today) - Date.parse(b.quotedAt)) / 86400000) <= settings.buybackMaxAgeDays);
+      const liq = analyzeLiquidity(obs.filter((o) => o.country === "JP"), v.id, "NEW_UNUSED", today, settings.marketMaxAgeDays, freshBb.length > 0);
       return { v, s, liq };
     }),
   );

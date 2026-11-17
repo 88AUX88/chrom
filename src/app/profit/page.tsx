@@ -36,6 +36,7 @@ function toReq(sp: SP): AnalysisRequest {
     manualSalePriceJpy: num(sp.manual),
     overrides: Object.fromEntries(EXPENSE_OVERRIDE_KEYS.flatMap((k) => (num(sp[`ov_${k}`]) !== null ? [[k, num(sp[`ov_${k}`])!]] : []))),
     overridesConfirmed: sp.ovc === "1",
+    localTaxConfirmed: sp.taxOk === "1",
     assumedDutyRate: num(sp.dutyAssume),
   };
 }
@@ -110,6 +111,7 @@ export default async function ProfitPage({ searchParams }: { searchParams: Promi
             <label className="text-xs text-mute">確認日<input type="date" name="date" defaultValue={req.priceObservedAt ?? ""} className="field mt-1" /></label>
           </div>
           <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" name="taxIncl" value="1" defaultChecked={req.priceIncludesLocalTax} />表示価格は現地税込み（欧州VAT等）</label>
+          <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" name="taxOk" value="1" defaultChecked={req.localTaxConfirmed} />税別の場合、上の現地税率（州・市の売上税）を確認した</label>
           <div className="grid grid-cols-2 gap-2">
             <label className="text-xs text-mute">販売先<select name="platform" defaultValue={req.platform} className="field mt-1">{fees.map((f) => <option key={f.platform} value={f.platform}>{f.platform}</option>)}</select></label>
             <label className="text-xs text-mute">比較する状態<select name="cond" defaultValue={req.conditionGroup} className="field mt-1"><option value="NEW_UNUSED">新品/未使用</option><option value="USED">中古</option><option value="ANY">全状態</option></select></label>

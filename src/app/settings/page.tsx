@@ -36,6 +36,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
           <F label="為替の有効時間" name="fxMaxAgeHours" def={d.fxMaxAgeHours} />
           <F label="保守シナリオの為替上振れ" name="fxBufferRate" def={d.fxBufferRate} hint="0.03 = 3%円安" />
           <F label="成約不足時の追加値引き" name="thinDataHaircut" def={d.thinDataHaircut} />
+          <F label="買取査定の有効日数" name="buybackMaxAgeDays" def={d.buybackMaxAgeDays} />
           <label className="block text-xs text-mute">消費税の課税事業者区分
             <select name="businessTaxStatus" defaultValue={bts} className="field mt-1">
               <option value="UNKNOWN">未設定（原則課税・免税の低い方）</option><option value="TAXABLE">課税事業者（原則課税）</option><option value="SIMPLIFIED">課税事業者（簡易課税）</option><option value="EXEMPT">免税事業者</option>

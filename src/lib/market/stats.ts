@@ -42,7 +42,7 @@ export function dedupe(obs: Observation[]): Observation[] {
   const out: Observation[] = [];
   for (const o of obs) {
     const key = o.externalRef
-      ? `${o.platform}|ref|${o.externalRef}`
+      ? `${o.platform}|ref|${o.externalRef}|${o.kind === "ASK" ? "ASK" : "SOLD"}`
       : `${o.platform}|${o.kind}|${D(o.priceJpy).toFixed(0)}|${o.soldAt ?? o.observedAt}|${o.condition}`;
     if (seen.has(key)) continue;
     seen.add(key);

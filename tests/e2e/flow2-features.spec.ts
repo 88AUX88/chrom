@@ -100,7 +100,7 @@ test.describe.serial("iPhone: 追加機能（図鑑・管理・世界相場・�
 
   test("利益シミュレーター: 経費の上書き・シナリオ切替・仮定関税率", async ({ page }) => {
     await login(page);
-    const base = `/profit?variant=${V}&country=US&currency=USD&price=500&src=STORE_OBSERVED&taxRate=0.08875&platform=SNKRDUNK`;
+    const base = `/profit?variant=${V}&country=US&currency=USD&price=500&src=STORE_OBSERVED&taxRate=0.08875&taxOk=1&platform=SNKRDUNK`;
     await page.goto(base);
     const std = async () => (await page.locator(".card", { hasText: "標準" }).locator("p.text-2xl").first().innerText());
     const before = await std();
@@ -175,4 +175,31 @@ test.describe.serial("iPhone: 追加機能（図鑑・管理・世界相場・�
     const rows = (await res.json()) as { retract_reason: string | null }[];
     expect(rows.filter((r) => r.retract_reason === "別仕様の誤登録")).toHaveLength(1);
   });
+
+  test("監査#1: 税別の米国定価は税率確認まで HOLD（0%で利益を過大評価しない）", async ({ page }) => {
+    await login(page);
+    await page.goto(`/profit?variant=${V}&country=US&currency=USD&price=500&src=STORE_OBSERVED&taxRate=0&platform=SNKRDUNK`);
+    await expect(page.getByText("HOLD", { exact: true })).toBeVisible();
+    await expect(page.getByText(/税別表示価格の現地税率（0）が未確認です/)).toBeVisible();
+  });
+
+  test("監査#3: ログインしていない状態ではサーバーアクションを実行できない", async ({ page, browser }) => {
+    await login(page);
+    await page.goto("/settings");
+    // 為替追加フォームのアクションIDを取得（JS無効時のフォーム送信と同じ形）
+    const form = page.locator("form", { has: page.locator('input[name="rate"]') });
+    const actionField = await form.locator('input[name^="$ACTION_ID_"]').getAttribute("name");
+    expect(actionField).toBeTruthy();
+    const before = ((await (await page.request.get("/api/export?table=fx_rates&format=json")).json()) as unknown[]).length;
+    const anon = await browser.newContext();
+    const res = await anon.request.post("/login", {
+      multipart: { [actionField!]: "", currency: "USD", rate: "999", asOf: "", source: "attack" },
+      maxRedirects: 0,
+    });
+    expect([303, 307, 308, 200]).toContain(res.status());
+    await anon.close();
+    const after = ((await (await page.request.get("/api/export?table=fx_rates&format=json")).json()) as unknown[]).length;
+    expect(after).toBe(before);
+  });
 });
+

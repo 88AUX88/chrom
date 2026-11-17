@@ -238,3 +238,12 @@ describe("指示書の検証項目（追加）", () => {
     expect(Number(r.landedCashOutlayJpy)).toBeGreaterThan(Number(r.purchaseTotalJpy));
   });
 });
+
+describe("監査指摘の回帰テスト（エンジン）", () => {
+  it("数値でない率は例外にせず計算不可を返す", () => {
+    const i = baseInputs();
+    expect(() => computeProfit({ ...i, purchase: { ...i.purchase, localTaxRefundRate: "abc" } })).not.toThrow();
+    expect(computeProfit({ ...i, purchase: { ...i.purchase, localTaxRefundRate: "abc" } }).ok).toBe(false);
+    expect(computeProfit({ ...i, businessTaxStatus: "SIMPLIFIED", deemedPurchaseRate: "x" }).ok).toBe(false);
+  });
+});

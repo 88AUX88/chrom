@@ -2,11 +2,11 @@
 import { cookies } from "next/headers";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db/client";
 import * as s from "@/db/schema";
-import { checkPassword, createSessionValue, SESSION_COOKIE, SESSION_TTL_SEC } from "@/lib/auth/session";
+import { checkPassword, createSessionValue, SESSION_COOKIE, SESSION_TTL_SEC, verifySessionValue } from "@/lib/auth/session";
 import { ensureVariant, getExpenseProfile, setSetting } from "@/lib/data";
 import { parseStrictDecimal } from "@/lib/money";
 import { schedule } from "@/lib/learn/cards";
@@ -73,6 +73,7 @@ async function uploadReferencePhotoImpl(f: FormData) {
 
 // ───────── 判定の保存 ─────────
 export async function saveScenario(f: FormData) {
+  await requireSession();
   const req = JSON.parse(str(f, "req")) as AnalysisRequest;
   const a = await analyze(req);
   if (!a) throw new Error("仕様が見つかりません");
@@ -136,6 +137,7 @@ const DecisionForm = z.object({
   fxMaxAgeHours: z.coerce.number().min(1).max(24 * 60),
   fxBufferRate: z.coerce.number().min(0).max(0.5),
   thinDataHaircut: z.coerce.number().min(0).max(0.9),
+  buybackMaxAgeDays: z.coerce.number().int().min(1).max(3650),
 });
 async function saveDecisionSettingsImpl(f: FormData) {
   const v = DecisionForm.parse(Object.fromEntries(f));
@@ -221,6 +223,7 @@ async function addFxRateImpl(f: FormData) {
 
 // ───────── 取込 ─────────
 export async function runImport(_: unknown, f: FormData) {
+  await requireSession();
   const kind = str(f, "kind") as (typeof IMPORT_KINDS)[number];
   if (!IMPORT_KINDS.includes(kind)) return { error: "種類が不正です" };
   const file = f.get("file");
@@ -233,6 +236,7 @@ export async function runImport(_: unknown, f: FormData) {
 
 // ───────── 学習 ─────────
 export async function gradeCard(cardId: string, grade: 0 | 1 | 2) {
+  await requireSession();
   const db = await getDb();
   const [c] = await db.select().from(s.learningCards).where(eq(s.learningCards.id, cardId));
   if (!c) return;
@@ -362,6 +366,7 @@ function formValues(f: FormData): Record<string, string[]> {
 }
 
 export async function createProduct(_: unknown, f: FormData): Promise<{ error?: string; duplicates?: string[]; values?: Record<string, string[]>; n?: number }> {
+  await requireSession();
   try {
     const id = str(f, "id");
     if (!/^[a-z0-9][a-z0-9-]{2,80}$/.test(id)) return { error: "商品IDは英小文字・数字・ハイフン（例 ch-cross-pendant-large）", values: formValues(f), n: Date.now() };
@@ -384,6 +389,7 @@ export async function createProduct(_: unknown, f: FormData): Promise<{ error?: 
 }
 
 export async function updateProduct(_: unknown, f: FormData): Promise<{ error?: string; values?: Record<string, string[]>; n?: number }> {
+  await requireSession();
   const id = str(f, "id");
   try {
     const fields = productFields(f);
@@ -417,15 +423,29 @@ async function retractRecordImpl(f: FormData) {
   const db = await getDb();
   await db.transaction(async (tx) => {
     const now = new Date();
-    await tx.update(table).set({ retractedAt: now, retractReason: reason }).where(eq(table.id, id));
+    // 未取り消しの行だけを更新（再取り消しで元の記録を上書きしない・存在しない ID は履歴に残さない）
+    const updated = await tx.update(table).set({ retractedAt: now, retractReason: reason }).where(and(eq(table.id, id), isNull(table.retractedAt))).returning({ id: table.id });
+    if (updated.length === 0) throw new Error("対象が見つからないか、既に取り消し済みです");
     await logChange(tx, entity, String(id), "RETRACT", { retractedAt: null }, { retractedAt: now.toISOString() }, reason);
   });
-  revalidatePath(str(f, "back") || "/products");
+  revalidatePath(safePath(str(f, "back"), "/products"));
 }
 
 
 // ───────── エラー表示: 検証エラーは元の画面へ戻してメッセージを表示（本番でも内容が分かるように） ─────────
+/** サーバーアクションは公開エンドポイントになるため、middleware に頼らず各アクションで認証を確認する */
+async function requireSession() {
+  const ok = await verifySessionValue((await cookies()).get(SESSION_COOKIE)?.value);
+  if (!ok) redirect("/login");
+}
+
+/** 戻り先は同一オリジンのパスのみ（オープンリダイレクト防止） */
+function safePath(p: string, fallback = "/"): string {
+  return p.startsWith("/") && !p.startsWith("//") && !p.includes("\\") ? p : fallback;
+}
+
 async function guarded(f: FormData, impl: (f: FormData) => Promise<unknown>, back: (f: FormData) => string) {
+  await requireSession();
   let message: string | null = null;
   try {
     await impl(f);
@@ -434,7 +454,7 @@ async function guarded(f: FormData, impl: (f: FormData) => Promise<unknown>, bac
     message = e instanceof z.ZodError ? "入力値が範囲外です: " + e.issues.map((i) => i.path.join(".")).join(", ") : e instanceof Error ? e.message : "保存できませんでした";
   }
   if (message) {
-    const to = back(f);
+    const to = safePath(back(f));
     redirect(`${to}${to.includes("?") ? "&" : "?"}err=${encodeURIComponent(message.slice(0, 200))}`);
   }
 }

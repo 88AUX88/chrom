@@ -23,7 +23,7 @@ export default async function Compare({ searchParams }: { searchParams: Promise<
   for (const r of retail) if (!latestByCountry.has(r.country) || latestByCountry.get(r.country)!.observedAt < r.observedAt) latestByCountry.set(r.country, r);
   const base = (r: (typeof retail)[number], pf: string): AnalysisRequest => ({
     variantId: sp.variant!, country: r.country, currency: r.currency, price: String(r.amount), priceSource: srcOf(r.priceKind), priceObservedAt: r.observedAt,
-    priceIncludesLocalTax: r.taxInclusion === "INCLUDED", localTaxRate: "0", platform: pf, conditionGroup: "NEW_UNUSED", fxOverride: null, manualSalePriceJpy: null,
+    priceIncludesLocalTax: r.taxInclusion === "INCLUDED", localTaxRate: "0", localTaxConfirmed: false, platform: pf, conditionGroup: "NEW_UNUSED", fxOverride: null, manualSalePriceJpy: null,
   });
   const rows = await Promise.all([...latestByCountry.values()].map(async (r) => ({ r, a: (await analyze(base(r, platform)))! })));
   const profitOf = (x: (typeof rows)[number], i: number) => { const res = x.a.scenarios[i].result; return res && res.ok ? D(res.adopted.preTaxProfitJpy) : null; };

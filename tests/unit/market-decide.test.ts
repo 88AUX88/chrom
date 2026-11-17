@@ -222,3 +222,18 @@ describe("流動性分析", () => {
     expect(l.convertibility).toBe("MEDIUM");
   });
 });
+
+describe("監査指摘の回帰テスト（集計・判定）", () => {
+  it("#7 同じ取引IDの ASK と成約は両方残る", () => {
+    const s = summarizeMarket([ob({ kind: "ASK", soldAt: null, externalRef: "m123", observedAt: "2026-11-10" }), ob({ kind: "VERIFIED_SOLD", externalRef: "m123", soldAt: "2026-11-05" })], "v-silver", "NEW_UNUSED", 90, TODAY);
+    expect(s.sold.count).toBe(1);
+    expect(s.ask.count).toBe(1);
+  });
+  it("#5 店頭確認でも記録日が古ければ HOLD", () => {
+    expect(decide(decisionInput({ purchasePriceSource: "STORE_OBSERVED", purchasePriceAgeDays: 30 }), DEFAULT_DECISION_SETTINGS).decision).toBe("HOLD");
+  });
+  it("#6 未来の為替・未来の確認日は HOLD", () => {
+    expect(decide(decisionInput({ fxAgeHours: -100 }), DEFAULT_DECISION_SETTINGS).decision).toBe("HOLD");
+    expect(decide(decisionInput({ purchasePriceAgeDays: -3 }), DEFAULT_DECISION_SETTINGS).decision).toBe("HOLD");
+  });
+});

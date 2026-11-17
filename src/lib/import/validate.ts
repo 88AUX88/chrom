@@ -93,6 +93,15 @@ const oneOf = <T extends readonly string[]>(arr: T, v: string) => (arr as readon
 /** 数値表記ゆれ（"400" と "400.00"）を同一視するための正規化 */
 const n = (v: string | undefined) => (v ? parseStrictDecimal(v)?.toString() ?? v : "");
 
+const MARKETPLACE_HOST = /(^|\.)(buyma\.com|snkrdunk\.com|ebay\.[a-z.]+|grailed\.com|stockx\.com|mercari\.com|jp\.mercari\.com|fril\.jp|2ndstreet\.jp|komehyo\.(co\.jp|jp)|rinkan\.(co\.jp|jp)|brandoff\.co\.jp|vestiairecollective\.com|therealreal\.com|farfetch\.com|bring\.co\.jp)$/i;
+function safeHost(u: string): string {
+  try {
+    return new URL(u).hostname;
+  } catch {
+    return "";
+  }
+}
+
 export function dedupeKey(kind: ImportKind, r: Row): string {
   switch (kind) {
     case "products":
@@ -102,7 +111,7 @@ export function dedupeKey(kind: ImportKind, r: Row): string {
       return `${kind}|${r.variant_id}|${r.country}|${r.store ?? ""}|${r.currency}|${n(r.amount)}|${r.observed_at}|${r.price_kind}`;
     case "market_observations":
       return r.external_ref
-        ? `${kind}|${r.platform}|ref|${r.external_ref}`
+        ? `${kind}|${r.platform}|ref|${r.external_ref}|${r.kind === "ASK" ? "ASK" : "SOLD"}`
         : `${kind}|${r.variant_id}|${r.platform}|${r.kind}|${n(r.price_jpy || r.price_local)}|${r.sold_at || r.observed_at}|${r.condition}`;
     case "buyback_quotes":
       return `${kind}|${r.variant_id}|${r.shop}|${n(r.price_jpy)}|${r.observed_at}|${r.condition}`;
@@ -184,6 +193,8 @@ export function validateRow(kind: ImportKind, r: Row, ctx: RefContext): string[]
       if (r.price_kind === "OFFICIAL" && !["OFFICIAL_SITE", "STORE_VISIT"].includes(r.source_type))
         errs.push("OFFICIAL価格の出典は公式サイトまたは店頭確認のみ");
       if (r.price_kind === "RECEIPT" && r.source_type !== "RECEIPT") errs.push("RECEIPT価格の出典はレシートのみ");
+      if (r.price_kind === "OFFICIAL" && r.source_url && MARKETPLACE_HOST.test(safeHost(r.source_url)))
+        errs.push("出典URLが二次流通・買取サイトです。正規定価として取り込めません");
       if (["MARKETPLACE", "BUYBACK_SITE"].includes(r.source_type))
         errs.push("中古店・BUYMA等の価格は正規定価として取り込めません（market_observations へ）");
       if (r.price_kind === "ESTIMATE" && r.reliability !== "ESTIMATED") errs.push("ESTIMATE は reliability=ESTIMATED");
@@ -198,8 +209,12 @@ export function validateRow(kind: ImportKind, r: Row, ctx: RefContext): string[]
       if (!oneOf(MARKET_PLATFORMS, r.platform)) errs.push(`platform が不正: ${r.platform}`);
       if (!oneOf(MARKET_KINDS, r.kind)) errs.push(`kind が不正（RETAIL/BUYBACK は別ファイル、SOLD_OUT 表示は不可）: ${r.kind}`);
       {
-        const country = r.country || "JP";
+        const JP_PLATFORMS = ["SNKRDUNK", "BUYMA", "RINKAN", "BRING", "KOMEHYO", "MERCARI"];
         const currency = r.currency || "JPY";
+        // 海外通貨・海外販売先は国の明示を必須にする（未指定で日本の成約として混入するのを防ぐ）
+        if (!r.country && (currency !== "JPY" || !JP_PLATFORMS.includes(r.platform))) errs.push("海外通貨・海外販売先のデータは country が必須です");
+        const country = r.country || "JP";
+        if (country === "JP" && currency !== "JPY") errs.push("country=JP で JPY 以外の通貨は使えません");
         if (!/^([A-Z]{2}|EU)$/.test(country)) errs.push(`country は ISO 2文字: ${country}`);
         if (!CURRENCIES.includes(currency)) errs.push(`未対応の通貨: ${currency}`);
         if (currency === "JPY") positive("price_jpy", r.price_jpy, errs);
@@ -235,6 +250,7 @@ export function validateRow(kind: ImportKind, r: Row, ctx: RefContext): string[]
       if (!CURRENCIES.includes(r.currency) || r.currency === "JPY") errs.push(`通貨が不正: ${r.currency}`);
       positive("jpy_per_unit", r.jpy_per_unit, errs);
       if (Number.isNaN(Date.parse(r.as_of ?? ""))) errs.push("as_of が日時ではありません");
+      else if (Date.parse(r.as_of) > Date.now() + 60_000) errs.push("as_of が未来の日時です");
       if (!r.source) errs.push("source がありません");
       break;
   }

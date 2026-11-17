@@ -72,7 +72,12 @@ function validateNonNegative(i: ProfitInputs): string[] {
   check("リスク控除率", i.sale.riskReserveRate);
   check("旅費配賦", i.travelAllocationJpy);
   check("その他経費", i.otherCostsJpy);
+  if (errs.length) return errs; // 数値でない値があれば以降の比較をしない（例外にしない）
+  check("消費税率", i.importing.jctNationalRate);
+  check("みなし仕入率", i.deemedPurchaseRate ?? null);
+  if (errs.length) return errs;
   if (i.purchase.fxJpyPerUnit && D(i.purchase.fxJpyPerUnit).isZero()) errs.push("為替レートが0です");
+  if (D(i.importing.jctNationalRate).greaterThan(1)) errs.push("消費税率は1以下である必要があります");
   if (D(i.purchase.localTaxRefundRate).greaterThan(1)) errs.push("還付率は1以下である必要があります");
   if (i.deemedPurchaseRate && (!/^\d+(\.\d+)?$/.test(i.deemedPurchaseRate) || D(i.deemedPurchaseRate).greaterThan(1)))
     errs.push("みなし仕入率は0〜1である必要があります");

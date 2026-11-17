@@ -201,7 +201,7 @@ export async function getExpenseProfile(): Promise<{ id: number | null; data: Ex
 export async function currentFeeRules() {
   const db = await getDb();
   const rows = await db.execute<{ id: number; platform: string; version: number; fee_rate: string | null; fixed_fee_jpy: string; fee_includes_jct: boolean; status: s.AssumptionStatus; evidence_url: string | null; notes: string | null; effective_from: string }>(
-    sql`select distinct on (platform) * from fee_rules order by platform, version desc`,
+    sql`select distinct on (platform) * from fee_rules where effective_from <= current_date order by platform, version desc`,
   );
   return rows.rows;
 }

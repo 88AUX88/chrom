@@ -15,7 +15,7 @@ async function existingKeys(kind: ImportKind): Promise<Set<string>> {
   if (kind === "products") (await db.select({ id: s.products.id }).from(s.products)).forEach((r) => add({ id: r.id }));
   if (kind === "variants") (await db.select({ id: s.productVariants.id }).from(s.productVariants)).forEach((r) => add({ id: r.id }));
   if (kind === "market_observations") {
-    const rows = await db.execute<Row>(sql`select variant_id, platform, kind, case when currency = 'JPY' then price_jpy::text else price_local::text end as price_jpy, condition, coalesce(sold_at::text,'') sold_at, observed_at::text, coalesce(external_ref,'') external_ref from market_observations`);
+    const rows = await db.execute<Row>(sql`select variant_id, platform, kind, country, currency, case when currency = 'JPY' then price_jpy::text else price_local::text end as price_jpy, condition, coalesce(sold_at::text,'') sold_at, observed_at::text, coalesce(external_ref,'') external_ref from market_observations`);
     rows.rows.forEach(add);
   }
   if (kind === "retail_prices") {

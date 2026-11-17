@@ -88,7 +88,7 @@ test.describe.serial("iPhone: 主要操作の通し確認", () => {
 
   test("判定: 前提未確認なら HOLD（BUYを出さない）", async ({ page }) => {
     await login(page);
-    await page.goto(`/profit?variant=${V}&country=US&currency=USD&price=500&src=STORE_OBSERVED&taxRate=0.08875&platform=SNKRDUNK`);
+    await page.goto(`/profit?variant=${V}&country=US&currency=USD&price=500&src=STORE_OBSERVED&taxRate=0.08875&taxOk=1&platform=SNKRDUNK`);
     await expect(page.getByText("HOLD", { exact: true })).toBeVisible();
     await expect(page.getByText("関税率が未確認です")).toBeVisible();
     await expect(page.getByText("販売手数料率が未確認です")).toBeVisible();
@@ -101,7 +101,7 @@ test.describe.serial("iPhone: 主要操作の通し確認", () => {
     const dec = page.locator("form", { has: page.locator('select[name="businessTaxStatus"]') });
     await dec.locator('select[name="businessTaxStatus"]').selectOption("SIMPLIFIED");
     await dec.getByRole("button").click();
-    await page.goto(`/profit?variant=${V}&country=US&currency=USD&price=500&src=STORE_OBSERVED&taxRate=0.08875&platform=SNKRDUNK`);
+    await page.goto(`/profit?variant=${V}&country=US&currency=USD&price=500&src=STORE_OBSERVED&taxRate=0.08875&taxOk=1&platform=SNKRDUNK`);
     await expect(page.getByText("簡易課税のみなし仕入率が未確認です")).toBeVisible();
   });
 
@@ -174,7 +174,7 @@ test.describe.serial("iPhone: 主要操作の通し確認", () => {
 
   test("判定: 条件充足で BUY、高値仕入で PASS", async ({ page }) => {
     await login(page);
-    await page.goto(`/profit?variant=${V}&country=US&currency=USD&price=500&src=STORE_OBSERVED&taxRate=0.08875&platform=SNKRDUNK`);
+    await page.goto(`/profit?variant=${V}&country=US&currency=USD&price=500&src=STORE_OBSERVED&taxRate=0.08875&taxOk=1&platform=SNKRDUNK`);
     await expect(page.getByText("BUY", { exact: true })).toBeVisible();
     await expect(page.getByText("最大仕入許容価格")).toBeVisible();
     // 出品価格 400,000 円は売却見込に使われない（楽観 = P75 = 155,000）
@@ -182,11 +182,11 @@ test.describe.serial("iPhone: 主要操作の通し確認", () => {
     await noHorizontalOverflow(page);
     await page.screenshot({ path: "test-results/iphone-profit-buy.png", fullPage: true });
 
-    await page.goto(`/profit?variant=${V}&country=US&currency=USD&price=1500&src=STORE_OBSERVED&taxRate=0.08875&platform=SNKRDUNK`);
+    await page.goto(`/profit?variant=${V}&country=US&currency=USD&price=1500&src=STORE_OBSERVED&taxRate=0.08875&taxOk=1&platform=SNKRDUNK`);
     await expect(page.getByText("PASS", { exact: true })).toBeVisible();
     await expect(page.getByText("確認できた最高成約価格で売れても赤字です")).toBeVisible();
 
-    await page.goto(`/profit?variant=${V}&country=US&currency=USD&price=500&src=STORE_OBSERVED&taxRate=0.08875&platform=SNKRDUNK`);
+    await page.goto(`/profit?variant=${V}&country=US&currency=USD&price=500&src=STORE_OBSERVED&taxRate=0.08875&taxOk=1&platform=SNKRDUNK`);
     await page.getByRole("button", { name: "この判定を履歴に保存" }).click();
     await expect(page.getByText("判定を保存しました")).toBeVisible();
   });

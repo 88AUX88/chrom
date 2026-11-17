@@ -39,7 +39,8 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
   const obs = obsAll.filter((o) => o.variantId === sp.variant);
   const fxMap = new Map(fx.map((f) => [f.currency, f]));
   const toJpy = (amount: string, cur: string) => (cur === "JPY" ? D(amount) : fxMap.has(cur) ? D(amount).times(fxMap.get(cur)!.jpy_per_unit) : null);
-  const liq = analyzeLiquidity(obs.filter((o) => o.country === "JP"), sp.variant, cond, today, settings.marketMaxAgeDays, buyback.length > 0);
+  const freshBb = buyback.filter((b) => Math.floor((Date.parse(today) - Date.parse(b.quotedAt)) / 86400000) <= settings.buybackMaxAgeDays);
+  const liq = analyzeLiquidity(obs.filter((o) => o.country === "JP"), sp.variant, cond, today, settings.marketMaxAgeDays, freshBb.length > 0);
 
   // 国 × 種別 の集計（海外市場を含む・90日）
   const groups = new Map<string, typeof obs>();

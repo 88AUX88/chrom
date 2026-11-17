@@ -36,6 +36,8 @@ export interface AnalysisRequest {
   priceEvidenceUrl?: string | null;
   /** この計算だけの経費（未指定は経費プロファイル） */
   overrides?: Partial<Record<ExpenseOverrideKey, string>>;
+  /** 税別表示価格の現地税率を利用者が確認したか（税込表示なら不要） */
+  localTaxConfirmed?: boolean;
   /** 利用者が今回の経費を確認済みとしたか */
   overridesConfirmed?: boolean;
   /** 関税率が未確認・未入力のときに使う仮定の関税率（判定は HOLD のまま） */
@@ -155,7 +157,9 @@ export async function analyze(req: AnalysisRequest, today = new Date()): Promise
 
   const ov = Object.fromEntries(Object.entries(req.overrides ?? {}).filter(([k, x]) => (EXPENSE_OVERRIDE_KEYS as readonly string[]).includes(k) && x !== undefined && x !== ""));
   const e = { ...expense.data, ...ov };
-  const expenseConfirmed = expense.data.confirmed || (Object.keys(ov).length > 0 && !!req.overridesConfirmed);
+  // 一部だけ上書きして「確認済み」にしても、残りの仮置き値は未確認のまま（全項目を上書きした場合のみ確定）
+  const expenseConfirmed =
+    expense.data.confirmed || (!!req.overridesConfirmed && EXPENSE_OVERRIDE_KEYS.every((k) => k in ov));
   // 関税率が得られない場合のみ、明示された仮定値で計算（確度は未確認のまま）
   const dutyAssumed = dutySel.rate === null && !!req.assumedDutyRate;
   const dutyRateUsed = dutySel.rate ?? (dutyAssumed ? req.assumedDutyRate! : null);
@@ -197,7 +201,12 @@ export async function analyze(req: AnalysisRequest, today = new Date()): Promise
   };
 
   const market = summarizeMarket(obs, req.variantId, req.conditionGroup, settings.marketWindowDays, todayStr);
-  const sameCondBuyback = buyback.filter((b) => req.conditionGroup === "ANY" || (["NEW", "UNUSED"].includes(b.condition) ? "NEW_UNUSED" : "USED") === req.conditionGroup);
+  // 古い買取査定は使わない（buybackMaxAgeDays）
+  const sameCondBuyback = buyback.filter(
+    (b) =>
+      (req.conditionGroup === "ANY" || (["NEW", "UNUSED"].includes(b.condition) ? "NEW_UNUSED" : "USED") === req.conditionGroup) &&
+      Math.floor((today.getTime() - Date.parse(b.quotedAt + "T00:00:00Z")) / 86400000) <= settings.buybackMaxAgeDays,
+  );
   const bestBuyback = sameCondBuyback.reduce<string | null>((m, b) => (m === null || D(b.priceJpy).greaterThan(m) ? String(b.priceJpy) : m), null);
   let scen = saleScenarios(market, settings.thinDataHaircut, bestBuyback);
   if (req.platform === "BUYBACK") {
@@ -222,13 +231,20 @@ export async function analyze(req: AnalysisRequest, today = new Date()): Promise
   });
 
   const profitAtMaxSold = market.sold.max && hasPrice ? computeProfit(withSale(base, market.sold.max)) : null;
-  const ageDays = req.priceObservedAt ? Math.floor((today.getTime() - Date.parse(req.priceObservedAt + "T00:00:00Z")) / 86400000) : null;
+  // 店頭確認でも、記録日があれば経過日数で判定（古い店頭価格を永久に有効にしない）。日付なしの店頭確認＝今入力した価格
+  const ageDays = req.priceObservedAt
+    ? Math.floor((today.getTime() - Date.parse(req.priceObservedAt + "T00:00:00Z")) / 86400000)
+    : req.priceSource === "STORE_OBSERVED"
+      ? 0
+      : null;
+  const localTaxOk = req.priceIncludesLocalTax || !!req.localTaxConfirmed;
+  const latestSoldAge = market.latestSoldAt ? Math.floor((today.getTime() - Date.parse(market.latestSoldAt + "T00:00:00Z")) / 86400000) : null;
 
   const decision = decide(
     {
       variantConfirmed: true, // variant はユーザーが仕様選択で作成した時点で確定
       purchasePriceSource: hasPrice ? req.priceSource : "UNKNOWN",
-      purchasePriceAgeDays: req.priceSource === "STORE_OBSERVED" ? 0 : ageDays,
+      purchasePriceAgeDays: ageDays,
       fxAgeHours: fx.ageHours,
       importMode: e.importMode,
       dutyRateStatus: dutySel.certainty === "CONFIRMED" ? "USER_CONFIRMED" : "UNVERIFIED",
@@ -243,11 +259,16 @@ export async function analyze(req: AnalysisRequest, today = new Date()): Promise
         OPTIMISTIC: scenarios[2].result,
       },
       profitAtMaxSold,
-      extraBlockers:
-        taxStatus === "SIMPLIFIED" && fromAssumptionStatus(deemed?.status, !!deemed?.value) !== "CONFIRMED"
+      extraBlockers: [
+        ...(taxStatus === "SIMPLIFIED" && fromAssumptionStatus(deemed?.status, !!deemed?.value) !== "CONFIRMED"
           ? [{ message: "簡易課税のみなし仕入率が未確認です", todo: "設定で DEEMED_PURCHASE_RATE を確認・入力する" }]
-          : [],
-      extraWarnings: [...dutySel.notes, ...(dutyAssumed ? [`関税率は仮定値 ${req.assumedDutyRate} で計算（未確認）`] : [])],
+          : []),
+        ...(hasPrice && !localTaxOk
+          ? [{ message: `税別表示価格の現地税率（${req.localTaxRate || "0"}）が未確認です`, todo: "購入地の売上税率を確認し「確認した」にチェック（買付計画では保存時に確認扱い）" }]
+          : []),
+      ],
+      extraWarnings: [
+        ...(latestSoldAge !== null && latestSoldAge > settings.marketMaxAgeDays ? [`最新の成約が${latestSoldAge}日前（有効日数 ${settings.marketMaxAgeDays}日を超過）`] : []),...dutySel.notes, ...(dutyAssumed ? [`関税率は仮定値 ${req.assumedDutyRate} で計算（未確認）`] : [])],
     },
     settings,
   );
@@ -260,7 +281,7 @@ export async function analyze(req: AnalysisRequest, today = new Date()): Promise
   const target = hasPrice ? requiredSalePrice(withSale(base, "0"), settings.minProfitJpy) : null;
 
   // 確度（確定/推定/未確認）
-  const cPrice: Certainty = hasPrice ? fromPriceSource(req.priceSource) : "UNVERIFIED";
+  const cPrice: Certainty = hasPrice ? minCertainty(fromPriceSource(req.priceSource), localTaxOk ? "CONFIRMED" : "ESTIMATED") : "UNVERIFIED";
   const cFx: Certainty = !fx.rate ? "UNVERIFIED" : fx.ageHours !== null && fx.ageHours <= settings.fxMaxAgeHours ? "CONFIRMED" : "ESTIMATED";
   const cFee = fromAssumptionStatus(fee?.status, fee?.fee_rate !== null && fee?.fee_rate !== undefined);
   const cExp: Certainty = expenseConfirmed ? "CONFIRMED" : "ESTIMATED";

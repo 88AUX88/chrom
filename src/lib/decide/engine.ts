@@ -19,6 +19,7 @@ export interface DecisionSettings {
   marketMaxAgeDays: number;
   fxMaxAgeHours: number;
   fxBufferRate: number; // 保守シナリオの為替上振れ
+  buybackMaxAgeDays: number; // 買取査定の有効日数
   thinDataHaircut: number; // 成約件数不足時の追加ヘアカット
 }
 
@@ -32,6 +33,7 @@ export const DEFAULT_DECISION_SETTINGS: DecisionSettings = {
   marketMaxAgeDays: 30,
   fxMaxAgeHours: 48,
   fxBufferRate: 0.03,
+  buybackMaxAgeDays: 30,
   thinDataHaircut: 0.1,
 };
 
@@ -87,14 +89,14 @@ export function decide(input: DecisionInput, st: DecisionSettings): DecisionOutp
       `仕入価格の根拠が「${input.purchasePriceSource}」で未確認です`,
       "店頭価格・公式価格・レシートで仕入価格を確認する",
     );
-  if (input.purchasePriceSource !== "STORE_OBSERVED") {
-    if (input.purchasePriceAgeDays === null) blocker("仕入価格の確認日が不明です", "仕入価格の確認日を記録する");
-    else if (input.purchasePriceAgeDays > st.retailMaxAgeDays)
-      blocker(`海外価格が古い（${input.purchasePriceAgeDays}日前）`, "最新の海外価格を確認する");
-  }
+  if (input.purchasePriceAgeDays === null) blocker("仕入価格の確認日が不明です", "仕入価格の確認日を記録する");
+  else if (input.purchasePriceAgeDays < 0) blocker("仕入価格の確認日が未来日です", "確認日を修正する");
+  else if (input.purchasePriceAgeDays > (input.purchasePriceSource === "STORE_OBSERVED" ? 7 : st.retailMaxAgeDays))
+    blocker(`仕入価格が古い（${input.purchasePriceAgeDays}日前）`, "最新の価格を確認する");
 
   // 3. 為替
   if (input.fxAgeHours === null) blocker("為替レートがありません", "為替レートを登録する");
+  else if (input.fxAgeHours < 0) blocker("為替レートの基準日時が未来です", "為替レートを修正する");
   else if (input.fxAgeHours > st.fxMaxAgeHours)
     blocker(`為替レートが古い（${Math.round(input.fxAgeHours)}時間前）`, "為替レートを更新する");
 

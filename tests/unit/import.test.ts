@@ -152,3 +152,34 @@ describe("商品の重複検出", () => {
     expect(conflictsWith("PAPER chain necklace", "", [{ id: "a", nameEn: "Paper Chain Necklace", nameJaReading: "x" }])).toHaveLength(1);
   });
 });
+
+describe("監査指摘の回帰テスト（取込）", () => {
+  const H = "variant_id,platform,kind,condition,source_url,source_name,source_type,reliability,observed_at,sold_at,country,currency,price_local,fx_jpy_per_unit,price_jpy,external_ref\n";
+  const v = "ch-baby-fat-cross-charm-silver";
+  it("#2 海外通貨で country 未指定・JP+USD は隔離（日本の成約に混入させない）", () => {
+    const r = validateCsv("market_observations", enc(H +
+      `${v},EBAY,REPORTED_SOLD,NEW,https://www.ebay.com/itm/9,eBay,MARKETPLACE,REPORTED,2026-11-10,2026-11-09,,USD,800,150,,\n` +
+      `${v},EBAY,REPORTED_SOLD,NEW,https://www.ebay.com/itm/8,eBay,MARKETPLACE,REPORTED,2026-11-10,2026-11-09,JP,USD,800,150,,\n` +
+      `${v},GRAILED,REPORTED_SOLD,NEW,https://www.grailed.com/7,G,MARKETPLACE,REPORTED,2026-11-10,2026-11-09,,JPY,,,120000,\n`), ctx());
+    expect(r.accepted).toHaveLength(0);
+    expect(r.quarantine[0].reasons.join()).toContain("country が必須");
+    expect(r.quarantine[1].reasons.join()).toContain("country=JP で JPY 以外");
+    expect(r.quarantine[2].reasons.join()).toContain("country が必須");
+  });
+  it("#7 同じ取引IDの ASK と SOLD は重複扱いしない", () => {
+    const r = validateCsv("market_observations", enc(H +
+      `${v},SNKRDUNK,ASK,NEW,https://snkrdunk.com/1,S,MARKETPLACE,REPORTED,2026-11-01,,JP,JPY,,,52000,m123\n` +
+      `${v},SNKRDUNK,REPORTED_SOLD,NEW,https://snkrdunk.com/1,S,MARKETPLACE,REPORTED,2026-11-10,2026-11-09,JP,JPY,,,51000,m123\n`), ctx());
+    expect(r.accepted).toHaveLength(2);
+  });
+  it("#6 未来日時の為替を拒否", () => {
+    const r = validateCsv("fx_rates", enc("currency,jpy_per_unit,as_of,source\nUSD,150,2030-01-01T00:00:00Z,x\n"), ctx());
+    expect(r.quarantine[0].reasons.join()).toContain("未来");
+  });
+  it("二次流通サイトのURLを OFFICIAL 定価として取り込まない", () => {
+    const csv = "variant_id,country,currency,amount,price_kind,tax_inclusion,source_url,source_name,source_type,reliability,observed_at\n" +
+      `${v},US,USD,400,OFFICIAL,EXCLUDED,https://www.buyma.com/item/1,公式?,OFFICIAL_SITE,VERIFIED,2026-11-10\n`;
+    const r = validateCsv("retail_prices", enc(csv), ctx());
+    expect(r.quarantine[0].reasons.join()).toContain("二次流通・買取サイト");
+  });
+});

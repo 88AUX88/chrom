@@ -27,6 +27,7 @@ export async function defaultRequestFor(variantId: string, cond: ConditionGroup 
         priceEvidenceUrl: plan.priceEvidenceUrl,
         priceIncludesLocalTax: plan.priceIncludesLocalTax,
         localTaxRate: String(plan.localTaxRate),
+        localTaxConfirmed: true, // 買付計画で本人が入力した税率
         platform: plan.platform,
       },
     };
@@ -46,6 +47,8 @@ export async function defaultRequestFor(variantId: string, cond: ConditionGroup 
         priceEvidenceUrl: r.url,
         priceIncludesLocalTax: r.taxInclusion === "INCLUDED",
         localTaxRate: plan ? String(plan.localTaxRate) : "0",
+        // 税別/税区分不明の正規価格は、買付計画で税率を入れるまで未確認（0%で利益を過大評価しない）
+        localTaxConfirmed: !!plan,
         platform: plan?.platform ?? "SNKRDUNK",
       },
     };
@@ -86,5 +89,6 @@ export function profitUrl(req: AnalysisRequest): string {
   });
   if (req.price) q.set("price", req.price);
   if (req.priceObservedAt) q.set("date", req.priceObservedAt);
+  if (req.localTaxConfirmed) q.set("taxOk", "1");
   return `/profit?${q.toString()}`;
 }
