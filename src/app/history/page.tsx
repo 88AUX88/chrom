@@ -4,11 +4,11 @@ import * as s from "@/db/schema";
 import { recentScenarios } from "@/lib/data";
 import { D, formatJpy } from "@/lib/money";
 import { daysBetween } from "@/lib/market/stats";
-import { DecisionBadge, Empty, PageTitle, Section } from "@/components/ui";
+import { DecisionBadge, Empty, ErrorBanner, PageTitle, Section } from "@/components/ui";
 import { addPurchase, addSale } from "../actions";
 
-export default async function History({ searchParams }: { searchParams: Promise<{ saved?: string }> }) {
-  const { saved } = await searchParams;
+export default async function History({ searchParams }: { searchParams: Promise<{ saved?: string; err?: string }> }) {
+  const { saved, err } = await searchParams;
   const db = await getDb();
   const [scen, purchases, sales, scans] = await Promise.all([
     recentScenarios(30),
@@ -29,6 +29,7 @@ export default async function History({ searchParams }: { searchParams: Promise<
   return (
     <main>
       <PageTitle label="History" title="履歴" />
+      <ErrorBanner err={err} />
       {saved && <p className="mb-3 rounded-lg border border-buy/40 bg-buy/10 px-3 py-2 text-sm text-buy">判定を保存しました。</p>}
 
       <Section title="判定履歴（予想）">

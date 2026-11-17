@@ -1,19 +1,21 @@
 import { allLatestFx, counts, currentFeeRules, currentTaxAssumptions, getBusinessTaxStatus, getDecisionSettings, getExpenseProfile } from "@/lib/data";
-import { ExtLink, PageTitle, Rel, Section } from "@/components/ui";
+import { ErrorBanner, ExtLink, PageTitle, Rel, Section } from "@/components/ui";
 import { addFeeRule, addFxRate, addTaxAssumption, saveDecisionSettings, saveExpenseProfile } from "../actions";
 import { identifyConfigured } from "@/lib/identify/identify";
+import { SubmitButton } from "@/components/submit-button";
 
-function F({ label, name, def, hint, type = "text" }: { label: string; name: string; def: string | number; hint?: string; type?: string }) {
+function F({ label, name, def, hint, type = "text", numeric = true }: { label: string; name: string; def: string | number; hint?: string; type?: string; numeric?: boolean }) {
   return (
     <label className="block text-xs text-mute">
       {label}
-      <input name={name} type={type} defaultValue={def} inputMode={type === "text" ? "decimal" : undefined} className="field mt-1" />
+      <input name={name} type={type} defaultValue={def} inputMode={type === "text" && numeric ? "decimal" : undefined} pattern={type === "text" && numeric ? "\\d+(\\.\\d+)?" : undefined} title={numeric ? "半角数字（小数可）" : undefined} className="field mt-1" />
       {hint && <span className="mt-0.5 block text-[10px]">{hint}</span>}
     </label>
   );
 }
 
-export default async function Settings() {
+export default async function Settings({ searchParams }: { searchParams: Promise<{ err?: string }> }) {
+  const { err } = await searchParams;
   const [d, bts, exp, taxes, fees, fx, c] = await Promise.all([getDecisionSettings(), getBusinessTaxStatus(), getExpenseProfile(), currentTaxAssumptions(), currentFeeRules(), allLatestFx(), counts()]);
   const e = exp.data;
   // Opus 5.5 標準料金（$4/$20 per MTok, 2026-11 時点の公表値）による概算
@@ -21,6 +23,7 @@ export default async function Settings() {
   return (
     <main>
       <PageTitle label="Settings" title="設定" sub="変更は履歴として追加され、過去の値は上書きされません（判定基準を除く）" />
+      <ErrorBanner err={err} />
 
       <Section title="判定基準（BUY/HOLD/PASS）">
         <form action={saveDecisionSettings} className="card grid grid-cols-2 gap-2">
@@ -39,7 +42,7 @@ export default async function Settings() {
             </select>
             <span className="mt-0.5 block text-[10px]">インボイス登録・簡易課税等は税理士に確認</span>
           </label>
-          <button className="btn-primary col-span-2">判定基準を保存</button>
+          <div className="col-span-2"><SubmitButton>判定基準を保存</SubmitButton></div>
         </form>
       </Section>
 
@@ -60,7 +63,7 @@ export default async function Settings() {
           <F label="その他経費（円）" name="otherCostsJpy" def={e.otherCostsJpy} />
           <label className="col-span-2 flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" name="applyLowValueExemption" defaultChecked={e.applyLowValueExemption} />課税価格1万円以下の少額免税を適用</label>
           <label className="col-span-2 flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" name="confirmed" defaultChecked={e.confirmed} />上記の値を自分で確認した（未確認のままでは BUY を出しません）</label>
-          <button className="btn-primary col-span-2">経費プロファイルを保存</button>
+          <div className="col-span-2"><SubmitButton>経費プロファイルを保存</SubmitButton></div>
         </form>
       </Section>
 
@@ -80,7 +83,7 @@ export default async function Settings() {
           <label className="block text-xs text-mute">状態<select name="status" className="field mt-1"><option value="USER_CONFIRMED">本人確認済</option><option value="VERIFIED">一次資料で確認済</option><option value="UNVERIFIED">未確認</option></select></label>
           <label className="col-span-2 block text-xs text-mute">根拠URL（確認済みには必須）<input name="evidenceUrl" type="url" className="field mt-1" /></label>
           <label className="col-span-2 block text-xs text-mute">メモ<input name="notes" className="field mt-1" /></label>
-          <button className="btn col-span-2">新しい版として追加</button>
+          <div className="col-span-2"><SubmitButton className="btn w-full">新しい版として追加</SubmitButton></div>
         </form>
       </Section>
 
@@ -91,14 +94,14 @@ export default async function Settings() {
           </table>
         </div>
         <form action={addFeeRule} className="card mt-2 grid grid-cols-2 gap-2">
-          <F label="販売先（例 SNKRDUNK）" name="platform" def="SNKRDUNK" />
+          <F label="販売先（例 SNKRDUNK）" name="platform" def="SNKRDUNK" numeric={false} />
           <F label="手数料率（0.1 = 10%）" name="feeRate" def="" />
           <F label="固定手数料（円）" name="fixedFeeJpy" def="0" />
           <F label="適用開始日" name="effectiveFrom" def="" type="date" />
           <label className="block text-xs text-mute">状態<select name="status" className="field mt-1"><option value="USER_CONFIRMED">本人確認済</option><option value="VERIFIED">一次資料で確認済</option><option value="UNVERIFIED">未確認</option></select></label>
           <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" name="feeIncludesJct" defaultChecked />手数料は消費税込み</label>
           <label className="col-span-2 block text-xs text-mute">根拠URL<input name="evidenceUrl" type="url" className="field mt-1" /></label>
-          <button className="btn col-span-2">新しい版として追加</button>
+          <div className="col-span-2"><SubmitButton className="btn w-full">新しい版として追加</SubmitButton></div>
         </form>
       </Section>
 
@@ -108,11 +111,11 @@ export default async function Settings() {
           <p className="mt-1 text-[10px] text-mute">自動取得は未実装（為替APIの利用規約・費用承認後に追加予定）。カード会社の換算レートを推奨。</p>
         </div>
         <form action={addFxRate} className="card mt-2 grid grid-cols-2 gap-2">
-          <F label="通貨（USD等）" name="currency" def="USD" />
+          <F label="通貨（USD等）" name="currency" def="USD" numeric={false} />
           <F label="1通貨あたり円" name="rate" def="" />
           <F label="基準日時" name="asOf" def="" type="datetime-local" />
-          <F label="取得元" name="source" def="" />
-          <button className="btn col-span-2">為替を追加</button>
+          <F label="取得元" name="source" def="" numeric={false} />
+          <div className="col-span-2"><SubmitButton className="btn w-full">為替を追加</SubmitButton></div>
         </form>
       </Section>
 

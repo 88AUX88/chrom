@@ -94,3 +94,9 @@ const CERT_LABEL: Record<string, string> = { CONFIRMED: "確定", ESTIMATED: "�
 export function Cert({ c }: { c: string }) {
   return <span className={`inline-block shrink-0 rounded border px-1.5 py-0.5 text-[10px] leading-none ${CERT_STYLE[c] ?? "border-line text-mute"}`}>{CERT_LABEL[c] ?? c}</span>;
 }
+
+/** サーバー側の検証エラー（?err=）の表示 */
+export function ErrorBanner({ err }: { err?: string }) {
+  if (!err) return null;
+  return <p role="alert" className="mb-3 rounded-lg border border-pass/50 bg-pass/10 px-3 py-2 text-sm text-pass">保存できませんでした: {err}</p>;
+}

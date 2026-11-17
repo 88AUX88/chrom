@@ -18,8 +18,9 @@ export default defineConfig({
     launchOptions: process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {},
   },
   projects: [
-    { name: "iphone", use: { ...devices["iPhone 13"], browserName: "chromium" }, testMatch: /flow\.spec\.ts/ },
+    { name: "iphone", use: { ...devices["iPhone 13"], browserName: "chromium" }, testMatch: /flow(2-features)?\.spec\.ts/ },
     { name: "ipad", use: { ...devices["iPad Pro 11"], browserName: "chromium" }, testMatch: /layout\.spec\.ts/, dependencies: ["iphone"] },
+    { name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } }, testMatch: /layout\.spec\.ts/, dependencies: ["ipad"] },
   ],
   webServer: {
     command: `npx next start -p ${PORT}`,

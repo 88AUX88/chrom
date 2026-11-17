@@ -6,17 +6,18 @@ import { defaultHsForMaterial } from "@/lib/profit/duty";
 import { ProfitSummary } from "@/components/profit-summary";
 import { PlanForm } from "./plan-form";
 import { RetractForm } from "@/components/retract-form";
+import { SubmitButton } from "@/components/submit-button";
 import { summarizeMarket, isStale, type ConditionGroup } from "@/lib/market/stats";
 import { formatJpy, formatMoney } from "@/lib/money";
 import { CATEGORY_LABEL, MATERIAL_LABEL, variantLabel } from "@/lib/settings-defaults";
-import { Empty, ExtLink, PageTitle, Rel, Section, Warn } from "@/components/ui";
+import { Empty, ErrorBanner, ExtLink, PageTitle, Rel, Section, Warn } from "@/components/ui";
 import { confirmVariant } from "../../actions";
 import { PhotoUpload } from "./photo-upload";
 
 const KIND_LABEL: Record<string, string> = { ASK: "出品", VERIFIED_SOLD: "成約(確認)", REPORTED_SOLD: "成約(報告)", ESTIMATE: "推定" };
 const PRICE_KIND: Record<string, string> = { OFFICIAL: "公式", RECEIPT: "レシート", BUYER_REPORT: "購入者報告", ESTIMATE: "推定", UNKNOWN: "不明" };
 
-export default async function ProductPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ variant?: string; scan?: string; cond?: string; saved?: string }> }) {
+export default async function ProductPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ variant?: string; scan?: string; cond?: string; saved?: string; err?: string }> }) {
   const { id } = await params;
   const sp = await searchParams;
   const data = await getProduct(id);
@@ -42,6 +43,7 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
   return (
     <main>
       <PageTitle label={`Product · ${CATEGORY_LABEL[p.category]}`} title={p.nameEn} sub={<span className="flex flex-wrap items-center gap-2"><span className="text-silver">{p.nameJaReading}</span><Rel v={p.catalogStatus} /><Link href={`/products/${p.id}/edit`} className="text-xs underline">編集</Link></span>} />
+      <ErrorBanner err={sp.err} />
       {sp.saved && <p className="mb-2 rounded-lg border border-buy/40 bg-buy/10 px-3 py-2 text-sm text-buy">保存しました（変更履歴に記録）</p>}
 
       <div className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4">
@@ -100,7 +102,7 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
               </select>
             </label>
           )}
-          <button className="btn-primary w-full">この仕様で確定</button>
+          <SubmitButton>この仕様で確定</SubmitButton>
           <p className="text-xs text-mute">選択肢は入力補助であり、各仕様の実在を保証しません。</p>
         </form>
       </Section>

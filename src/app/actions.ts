@@ -1,6 +1,6 @@
 "use server";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
@@ -44,7 +44,7 @@ export async function logout() {
 }
 
 // ───────── 商品・仕様確定 ─────────
-export async function confirmVariant(f: FormData) {
+async function confirmVariantImpl(f: FormData) {
   const productId = str(f, "productId");
   const material = str(f, "material");
   const hasStones = str(f, "stones") === "true";
@@ -61,7 +61,7 @@ export async function confirmVariant(f: FormData) {
   redirect(`/products/${productId}?variant=${encodeURIComponent(variantId)}`);
 }
 
-export async function uploadReferencePhoto(f: FormData) {
+async function uploadReferencePhotoImpl(f: FormData) {
   const productId = str(f, "productId");
   const dataUrl = str(f, "dataUrl");
   if (!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(dataUrl) || dataUrl.length > 1_500_000) throw new Error("画像が不正、または大きすぎます");
@@ -88,7 +88,7 @@ export async function saveScenario(f: FormData) {
 }
 
 // ───────── 購入・販売実績 ─────────
-export async function addPurchase(f: FormData) {
+async function addPurchaseImpl(f: FormData) {
   const db = await getDb();
   await db.insert(s.purchases).values({
     variantId: str(f, "variantId"),
@@ -107,7 +107,7 @@ export async function addPurchase(f: FormData) {
   revalidatePath("/history");
 }
 
-export async function addSale(f: FormData) {
+async function addSaleImpl(f: FormData) {
   const db = await getDb();
   await db.insert(s.sales).values({
     purchaseId: Number(str(f, "purchaseId")),
@@ -137,7 +137,7 @@ const DecisionForm = z.object({
   fxBufferRate: z.coerce.number().min(0).max(0.5),
   thinDataHaircut: z.coerce.number().min(0).max(0.9),
 });
-export async function saveDecisionSettings(f: FormData) {
+async function saveDecisionSettingsImpl(f: FormData) {
   const v = DecisionForm.parse(Object.fromEntries(f));
   await setSetting("decision", v);
   const bts = str(f, "businessTaxStatus");
@@ -145,7 +145,7 @@ export async function saveDecisionSettings(f: FormData) {
   revalidatePath("/settings");
 }
 
-export async function saveExpenseProfile(f: FormData) {
+async function saveExpenseProfileImpl(f: FormData) {
   const cur = await getExpenseProfile();
   const data: ExpenseProfileData = {
     confirmed: str(f, "confirmed") === "on",
@@ -172,7 +172,7 @@ export async function saveExpenseProfile(f: FormData) {
   revalidatePath("/settings");
 }
 
-export async function addTaxAssumption(f: FormData) {
+async function addTaxAssumptionImpl(f: FormData) {
   const status = str(f, "status") as s.AssumptionStatus;
   if (!s.ASSUMPTION_STATUS.includes(status)) throw new Error("status が不正");
   if (!/^[A-Z_]+(:[0-9.]+(:EPA:[A-Z]{2})?)?$/.test(str(f, "key"))) throw new Error("項目名の形式が不正です");
@@ -183,7 +183,7 @@ export async function addTaxAssumption(f: FormData) {
   revalidatePath("/settings");
 }
 
-export async function addFeeRule(f: FormData) {
+async function addFeeRuleImpl(f: FormData) {
   const status = str(f, "status") as s.AssumptionStatus;
   if (!s.ASSUMPTION_STATUS.includes(status)) throw new Error("status が不正");
   const platform = str(f, "platform");
@@ -207,7 +207,7 @@ export async function addFeeRule(f: FormData) {
   revalidatePath("/settings");
 }
 
-export async function addFxRate(f: FormData) {
+async function addFxRateImpl(f: FormData) {
   const currency = str(f, "currency").toUpperCase();
   if (!/^[A-Z]{3}$/.test(currency) || currency === "JPY") throw new Error("通貨が不正");
   const asOf = new Date(str(f, "asOf") || Date.now());
@@ -242,7 +242,7 @@ export async function gradeCard(cardId: string, grade: 0 | 1 | 2) {
 
 // ───────── 買付計画（購入国・原産国・HS・価格・売却予定） ─────────
 const PRICE_SOURCES = ["STORE_OBSERVED", "OFFICIAL", "RECEIPT", "BUYER_REPORT", "ESTIMATE", "UNKNOWN"];
-export async function savePlan(f: FormData) {
+async function savePlanImpl(f: FormData) {
   const variantId = str(f, "variantId");
   const productId = str(f, "productId");
   const cert = (k: string) => {
@@ -300,11 +300,20 @@ export async function savePlan(f: FormData) {
 import { conflictsWith } from "@/lib/catalog";
 
 type Tx = Parameters<Parameters<Awaited<ReturnType<typeof getDb>>["transaction"]>[0]>[0];
+/** キー順に依存しない比較（jsonb はキー順が変わるため） */
+function stableJson(v: unknown): string {
+  if (v === undefined) return "null";
+  if (v === null || typeof v !== "object") return JSON.stringify(v);
+  if (v instanceof Date) return JSON.stringify(v.toISOString());
+  if (Array.isArray(v)) return `[${v.map(stableJson).join(",")}]`;
+  return `{${Object.keys(v as object).sort().map((k) => `${JSON.stringify(k)}:${stableJson((v as Record<string, unknown>)[k])}`).join(",")}}`;
+}
+
 async function logChange(tx: Tx, entity: string, entityId: string, action: "CREATE" | "UPDATE" | "RETRACT", before: Record<string, unknown> | null, after: Record<string, unknown>, reason?: string | null) {
   const changes: Record<string, { before: unknown; after: unknown }> = {};
   for (const k of Object.keys(after)) {
     const b = before ? before[k] : null;
-    if (JSON.stringify(b) !== JSON.stringify(after[k])) changes[k] = { before: b ?? null, after: after[k] };
+    if (stableJson(b) !== stableJson(after[k])) changes[k] = { before: b ?? null, after: after[k] };
   }
   if (action !== "CREATE" && Object.keys(changes).length === 0) return false;
   await tx.insert(s.changeLog).values({ entity, entityId, action, changes, reason: reason ?? null });
@@ -345,16 +354,23 @@ function productFields(f: FormData) {
   };
 }
 
-export async function createProduct(_: unknown, f: FormData): Promise<{ error?: string; duplicates?: string[] }> {
+/** 検証エラー時に入力値を返して再表示する（React 19 はアクション後にフォームをリセットするため） */
+function formValues(f: FormData): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const k of new Set(f.keys())) if (!k.startsWith("$")) out[k] = f.getAll(k).map(String);
+  return out;
+}
+
+export async function createProduct(_: unknown, f: FormData): Promise<{ error?: string; duplicates?: string[]; values?: Record<string, string[]>; n?: number }> {
   try {
     const id = str(f, "id");
-    if (!/^[a-z0-9][a-z0-9-]{2,80}$/.test(id)) return { error: "商品IDは英小文字・数字・ハイフン（例 ch-cross-pendant-large）" };
+    if (!/^[a-z0-9][a-z0-9-]{2,80}$/.test(id)) return { error: "商品IDは英小文字・数字・ハイフン（例 ch-cross-pendant-large）", values: formValues(f), n: Date.now() };
     const fields = productFields(f);
     const db = await getDb();
     const existing = await db.select({ id: s.products.id, nameEn: s.products.nameEn, nameJaReading: s.products.nameJaReading }).from(s.products);
-    if (existing.some((e) => e.id === id)) return { error: "同じ商品IDが既に存在します" };
+    if (existing.some((e) => e.id === id)) return { error: "同じ商品IDが既に存在します", values: formValues(f), n: Date.now() };
     const dup = conflictsWith(fields.nameEn, fields.nameJaReading, existing);
-    if (dup.length && str(f, "allowDuplicate") !== "on") return { error: "名称が既存商品と重複しています。別商品であることを確認した場合のみチェックを入れて再送信してください", duplicates: dup.map((d) => d.id) };
+    if (dup.length && str(f, "allowDuplicate") !== "on") return { error: "名称が既存商品と重複しています。別商品であることを確認した場合のみチェックを入れて再送信してください", duplicates: dup.map((d) => d.id), values: formValues(f), n: Date.now() };
     await db.transaction(async (tx) => {
       await tx.insert(s.products).values({ id, brandId: "chrome-hearts", ...fields });
       const aliases = str(f, "aliases").split(/[,、]/).map((x) => x.trim()).filter(Boolean);
@@ -362,12 +378,12 @@ export async function createProduct(_: unknown, f: FormData): Promise<{ error?: 
       await logChange(tx, "products", id, "CREATE", null, { ...fields, aliases });
     });
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "保存できませんでした" };
+    return { error: e instanceof Error ? e.message : "保存できませんでした", values: formValues(f), n: Date.now() };
   }
   redirect(`/products/${str(f, "id")}`);
 }
 
-export async function updateProduct(_: unknown, f: FormData): Promise<{ error?: string }> {
+export async function updateProduct(_: unknown, f: FormData): Promise<{ error?: string; values?: Record<string, string[]>; n?: number }> {
   const id = str(f, "id");
   try {
     const fields = productFields(f);
@@ -384,14 +400,14 @@ export async function updateProduct(_: unknown, f: FormData): Promise<{ error?: 
       if (aliases.length) await tx.insert(s.productAliases).values(aliases.map((alias) => ({ productId: id, alias })));
     });
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "保存できませんでした" };
+    return { error: e instanceof Error ? e.message : "保存できませんでした", values: formValues(f), n: Date.now() };
   }
   redirect(`/products/${id}?saved=1`);
 }
 
 const RETRACTABLE = { retail_prices: s.retailPrices, market_observations: s.marketObservations, buyback_quotes: s.buybackQuotes } as const;
 /** 誤ったデータを「取り消し」扱いにする（削除しない・履歴に残す） */
-export async function retractRecord(f: FormData) {
+async function retractRecordImpl(f: FormData) {
   const entity = str(f, "entity") as keyof typeof RETRACTABLE;
   const table = RETRACTABLE[entity];
   if (!table) throw new Error("対象が不正です");
@@ -405,4 +421,64 @@ export async function retractRecord(f: FormData) {
     await logChange(tx, entity, String(id), "RETRACT", { retractedAt: null }, { retractedAt: now.toISOString() }, reason);
   });
   revalidatePath(str(f, "back") || "/products");
+}
+
+
+// ───────── エラー表示: 検証エラーは元の画面へ戻してメッセージを表示（本番でも内容が分かるように） ─────────
+async function guarded(f: FormData, impl: (f: FormData) => Promise<unknown>, back: (f: FormData) => string) {
+  let message: string | null = null;
+  try {
+    await impl(f);
+  } catch (e) {
+    unstable_rethrow(e); // redirect / notFound はそのまま
+    message = e instanceof z.ZodError ? "入力値が範囲外です: " + e.issues.map((i) => i.path.join(".")).join(", ") : e instanceof Error ? e.message : "保存できませんでした";
+  }
+  if (message) {
+    const to = back(f);
+    redirect(`${to}${to.includes("?") ? "&" : "?"}err=${encodeURIComponent(message.slice(0, 200))}`);
+  }
+}
+
+export async function confirmVariant(f: FormData) {
+  return guarded(f, confirmVariantImpl, f => `/products/${str(f, "productId")}`);
+}
+
+export async function uploadReferencePhoto(f: FormData) {
+  return guarded(f, uploadReferencePhotoImpl, f => `/products/${str(f, "productId")}`);
+}
+
+export async function savePlan(f: FormData) {
+  return guarded(f, savePlanImpl, f => `/products/${str(f, "productId")}?variant=${encodeURIComponent(str(f, "variantId"))}`);
+}
+
+export async function addPurchase(f: FormData) {
+  return guarded(f, addPurchaseImpl, () => "/history");
+}
+
+export async function addSale(f: FormData) {
+  return guarded(f, addSaleImpl, () => "/history");
+}
+
+export async function saveDecisionSettings(f: FormData) {
+  return guarded(f, saveDecisionSettingsImpl, () => "/settings");
+}
+
+export async function saveExpenseProfile(f: FormData) {
+  return guarded(f, saveExpenseProfileImpl, () => "/settings");
+}
+
+export async function addTaxAssumption(f: FormData) {
+  return guarded(f, addTaxAssumptionImpl, () => "/settings");
+}
+
+export async function addFeeRule(f: FormData) {
+  return guarded(f, addFeeRuleImpl, () => "/settings");
+}
+
+export async function addFxRate(f: FormData) {
+  return guarded(f, addFxRateImpl, () => "/settings");
+}
+
+export async function retractRecord(f: FormData) {
+  return guarded(f, retractRecordImpl, f => str(f, "back") || "/products");
 }

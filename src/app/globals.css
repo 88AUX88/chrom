@@ -24,3 +24,10 @@ input, select, textarea { font-size: 16px; } /* iOS のズーム防止 */
 table.data { @apply w-full text-sm; }
 table.data th { @apply py-1.5 pr-2 text-left text-[11px] font-medium text-mute; }
 table.data td { @apply border-t border-line py-2 pr-2 align-top; }
+
+/* モーション（控えめ・視差効果なし。OSの「視差効果を減らす」を尊重） */
+@keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+main { animation: fade-in .25s ease-out both; }
+.fade-in { animation: fade-in .3s ease-out both; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+:focus-visible { outline: 2px solid var(--color-silver); outline-offset: 2px; }
