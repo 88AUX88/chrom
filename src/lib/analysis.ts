@@ -34,6 +34,12 @@ export interface AnalysisRequest {
   conditionGroup: ConditionGroup;
   fxOverride: string | null; // 店頭で確認したレート等（入力時点を基準日時とする）
   priceEvidenceUrl?: string | null;
+  /** この計算だけの経費（未指定は経費プロファイル） */
+  overrides?: Partial<Record<ExpenseOverrideKey, string>>;
+  /** 利用者が今回の経費を確認済みとしたか */
+  overridesConfirmed?: boolean;
+  /** 関税率が未確認・未入力のときに使う仮定の関税率（判定は HOLD のまま） */
+  assumedDutyRate?: string | null;
   manualSalePriceJpy: string | null; // 利用者の仮定（判定には使わない）
 }
 
@@ -41,6 +47,20 @@ export interface ScenarioOut extends SaleScenarioPrice {
   result: ProfitOutcome | null;
   fxUsed: string | null;
 }
+
+export const EXPENSE_OVERRIDE_KEYS = [
+  "cardFeeRate",
+  "localTaxRefundRate",
+  "intlShippingJpy",
+  "insuranceJpy",
+  "customsBrokerFeeJpy",
+  "travelAllocationJpy",
+  "domesticShippingJpy",
+  "packagingJpy",
+  "riskReserveRate",
+  "otherCostsJpy",
+] as const;
+export type ExpenseOverrideKey = (typeof EXPENSE_OVERRIDE_KEYS)[number];
 
 export interface SourceRef {
   label: string;
@@ -53,6 +73,8 @@ export interface Analysis {
   req: AnalysisRequest;
   plan: Awaited<ReturnType<typeof latestPlan>>;
   duty: DutySelection;
+  dutyAssumed: boolean;
+  expenses: Record<ExpenseOverrideKey, string>;
   purchaseCountry: string;
   originCountry: string | null;
   originCertainty: Certainty;
@@ -131,7 +153,12 @@ export async function analyze(req: AnalysisRequest, today = new Date()): Promise
     fx = { rate: String(fxRow.jpyPerUnit), asOf: asOf.toISOString(), source: fxRow.source, ageHours: (today.getTime() - asOf.getTime()) / 3600000 };
   } else fx = { rate: null, asOf: null, source: null, ageHours: null };
 
-  const e = expense.data;
+  const ov = Object.fromEntries(Object.entries(req.overrides ?? {}).filter(([k, x]) => (EXPENSE_OVERRIDE_KEYS as readonly string[]).includes(k) && x !== undefined && x !== ""));
+  const e = { ...expense.data, ...ov };
+  const expenseConfirmed = expense.data.confirmed || (Object.keys(ov).length > 0 && !!req.overridesConfirmed);
+  // 関税率が得られない場合のみ、明示された仮定値で計算（確度は未確認のまま）
+  const dutyAssumed = dutySel.rate === null && !!req.assumedDutyRate;
+  const dutyRateUsed = dutySel.rate ?? (dutyAssumed ? req.assumedDutyRate! : null);
   const base: ProfitInputs = {
     purchase: {
       currency: req.currency,
@@ -144,7 +171,7 @@ export async function analyze(req: AnalysisRequest, today = new Date()): Promise
     },
     importing: {
       mode: e.importMode,
-      customsDutyRate: dutySel.rate,
+      customsDutyRate: dutyRateUsed,
       jctNationalRate: jct?.value ?? "0.078",
       jctLocalRatioOfNational: "22/78",
       jctStandardRate: "0.10",
@@ -207,7 +234,7 @@ export async function analyze(req: AnalysisRequest, today = new Date()): Promise
       dutyRateStatus: dutySel.certainty === "CONFIRMED" ? "USER_CONFIRMED" : "UNVERIFIED",
       feeRuleStatus: fee?.fee_rate !== null && fee?.fee_rate !== undefined ? fee.status : "UNVERIFIED",
       businessTaxKnown: taxStatus !== "UNKNOWN",
-      expenseProfileConfirmed: e.confirmed,
+      expenseProfileConfirmed: expenseConfirmed,
       market,
       saleScenarios: scen,
       results: {
@@ -220,7 +247,7 @@ export async function analyze(req: AnalysisRequest, today = new Date()): Promise
         taxStatus === "SIMPLIFIED" && fromAssumptionStatus(deemed?.status, !!deemed?.value) !== "CONFIRMED"
           ? [{ message: "簡易課税のみなし仕入率が未確認です", todo: "設定で DEEMED_PURCHASE_RATE を確認・入力する" }]
           : [],
-      extraWarnings: dutySel.notes,
+      extraWarnings: [...dutySel.notes, ...(dutyAssumed ? [`関税率は仮定値 ${req.assumedDutyRate} で計算（未確認）`] : [])],
     },
     settings,
   );
@@ -236,7 +263,7 @@ export async function analyze(req: AnalysisRequest, today = new Date()): Promise
   const cPrice: Certainty = hasPrice ? fromPriceSource(req.priceSource) : "UNVERIFIED";
   const cFx: Certainty = !fx.rate ? "UNVERIFIED" : fx.ageHours !== null && fx.ageHours <= settings.fxMaxAgeHours ? "CONFIRMED" : "ESTIMATED";
   const cFee = fromAssumptionStatus(fee?.status, fee?.fee_rate !== null && fee?.fee_rate !== undefined);
-  const cExp: Certainty = e.confirmed ? "CONFIRMED" : "ESTIMATED";
+  const cExp: Certainty = expenseConfirmed ? "CONFIRMED" : "ESTIMATED";
   const cAcq = minCertainty(cPrice, cFx, dutySel.certainty, cExp);
   const cTaxStatus: Certainty = taxStatus === "UNKNOWN" ? "UNVERIFIED" : taxStatus === "SIMPLIFIED" ? fromAssumptionStatus(deemed?.status, !!deemed?.value) : "CONFIRMED";
   const anyProfit = scenarios.some((x) => x.result?.ok);
@@ -265,7 +292,8 @@ export async function analyze(req: AnalysisRequest, today = new Date()): Promise
   return {
     req,
     plan,
-    duty: dutySel,
+    duty: dutyAssumed ? { ...dutySel, rate: req.assumedDutyRate!, notes: [...dutySel.notes, "仮定の関税率で計算"] } : dutySel,
+    dutyAssumed,
     purchaseCountry: req.country,
     originCountry: plan?.originCountry ?? null,
     originCertainty,
@@ -286,7 +314,8 @@ export async function analyze(req: AnalysisRequest, today = new Date()): Promise
     productName: v.product.nameEn,
     material: v.variant.material,
     dutyKey: dutySel.key ?? "",
-    dutyRate: dutySel.rate,
+    dutyRate: dutyRateUsed,
+    expenses: Object.fromEntries(EXPENSE_OVERRIDE_KEYS.map((k) => [k, String(e[k])])) as Record<ExpenseOverrideKey, string>,
     dutyStatus: dutySel.certainty === "CONFIRMED" ? "USER_CONFIRMED" : "UNVERIFIED",
     fee: { rate: fee?.fee_rate ?? null, status: fee?.status ?? "UNVERIFIED", platform: req.platform, evidenceUrl: fee?.evidence_url ?? null },
     fx,
@@ -297,7 +326,7 @@ export async function analyze(req: AnalysisRequest, today = new Date()): Promise
     maxPurchaseLocal: maxLocal ? maxLocal.toFixed(2) : null,
     breakEvenSaleJpy: be ? be.toFixed(0) : null,
     targetSaleJpy: target ? target.toFixed(0) : null,
-    expenseConfirmed: e.confirmed,
+    expenseConfirmed,
     businessTaxStatus: taxStatus,
   };
 }

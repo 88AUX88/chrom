@@ -105,6 +105,11 @@ export interface ProfitResult {
   importBreakdown: ImportBreakdown;
   /** 取得までの現金支出合計（輸入消費税・旅費含む） */
   landedCashOutlayJpy: string;
+  /** 総仕入原価: 現地での買付総額（円換算 − 還付見込 + カード手数料） */
+  purchaseTotalJpy: string;
+  /** 販売先からの受取額（売却 − 販売手数料）と、送料・梱包控除後の受取額 */
+  saleProceedsJpy: string;
+  netReceiptJpy: string;
   /** 費用の内訳（すべて円・税込の現金ベース。UI はこれを表示し再計算しない） */
   costLines: {
     platformFeeJpy: string;

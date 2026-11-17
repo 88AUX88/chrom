@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { analyze, type AnalysisRequest } from "@/lib/analysis";
+import { analyze, EXPENSE_OVERRIDE_KEYS, type AnalysisRequest } from "@/lib/analysis";
 import { getVariant, retailPricesFor, currentFeeRules } from "@/lib/data";
 import { D, formatJpy, formatMoney, formatPct } from "@/lib/money";
 import { variantLabel } from "@/lib/settings-defaults";
@@ -34,8 +34,24 @@ function toReq(sp: SP): AnalysisRequest {
     conditionGroup: (["NEW_UNUSED", "USED", "ANY"].includes(sp.cond ?? "") ? sp.cond : "NEW_UNUSED") as ConditionGroup,
     fxOverride: num(sp.fx),
     manualSalePriceJpy: num(sp.manual),
+    overrides: Object.fromEntries(EXPENSE_OVERRIDE_KEYS.flatMap((k) => (num(sp[`ov_${k}`]) !== null ? [[k, num(sp[`ov_${k}`])!]] : []))),
+    overridesConfirmed: sp.ovc === "1",
+    assumedDutyRate: num(sp.dutyAssume),
   };
 }
+
+const EXPENSE_LABEL: Record<string, string> = {
+  cardFeeRate: "決済(カード)手数料率",
+  localTaxRefundRate: "現地税の還付見込割合",
+  intlShippingJpy: "海外送料（円）",
+  insuranceJpy: "保険（円）",
+  customsBrokerFeeJpy: "通関手数料（円）",
+  travelAllocationJpy: "旅費の按分（円）",
+  domesticShippingJpy: "国内送料（円）",
+  packagingJpy: "梱包費（円）",
+  riskReserveRate: "返品・値下げリスク率",
+  otherCostsJpy: "その他経費（円）",
+};
 
 export default async function ProfitPage({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
@@ -103,6 +119,16 @@ export default async function ProfitPage({ searchParams }: { searchParams: Promi
             <div className="mt-2 grid grid-cols-2 gap-2">
               <label className="text-xs text-mute">為替 円/1{req.currency}<input name="fx" inputMode="decimal" defaultValue={req.fxOverride ?? ""} placeholder={a.fx.rate ?? "未登録"} className="field mt-1" /></label>
               <label className="text-xs text-mute">売却価格の仮定（円）<input name="manual" inputMode="numeric" defaultValue={req.manualSalePriceJpy ?? ""} placeholder="成約データがない場合" className="field mt-1" /></label>
+              <label className="col-span-2 text-xs text-mute">関税率の仮定（関税率が未確認・未入力の場合のみ使用。例 0.05）<input name="dutyAssume" inputMode="decimal" defaultValue={req.assumedDutyRate ?? ""} placeholder={a.dutyRate !== null && !a.dutyAssumed ? `登録済み ${a.dutyRate}（仮定は不要）` : "未確認"} className="field mt-1" /></label>
+            </div>
+          </details>
+          <details className="text-sm" data-testid="expense-overrides">
+            <summary className="cursor-pointer text-mute">経費（この計算だけ変更）</summary>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              {EXPENSE_OVERRIDE_KEYS.map((k) => (
+                <label key={k} className="text-xs text-mute">{EXPENSE_LABEL[k]}<input name={`ov_${k}`} inputMode="decimal" defaultValue={req.overrides?.[k] ?? ""} placeholder={a.expenses[k]} className="field mt-1" /></label>
+              ))}
+              <label className="col-span-2 flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" name="ovc" value="1" defaultChecked={req.overridesConfirmed} />入力した経費は確認済み（未確認のままでは BUY を出しません）</label>
             </div>
           </details>
           <button className="btn-primary w-full">計算する</button>
@@ -125,7 +151,7 @@ export default async function ProfitPage({ searchParams }: { searchParams: Promi
       <Section title="計算の前提">
         <div className="card space-y-1 text-sm">
           <p>為替: {a.fx.rate ? <>{D(a.fx.rate).toString()}円 <span className="text-mute">（{a.fx.source}, {a.fx.asOf ? new Date(a.fx.asOf).toLocaleString("ja-JP") : ""}）</span></> : <span className="text-pass">未登録</span>}</p>
-          <p>関税率（{a.dutyKey.split(":")[1]}）: {a.dutyRate !== null ? formatPct(D(a.dutyRate), 2) : <span className="text-pass">未確認</span>} <Rel v={a.dutyStatus} /></p>
+          <p>関税率（{a.dutyKey.split(":")[1]}）: {a.dutyRate !== null ? formatPct(D(a.dutyRate), 2) : <span className="text-pass">未確認</span>}{a.dutyAssumed && <span className="text-hold">（仮定値）</span>} <Rel v={a.dutyStatus} /> <span className="text-xs text-mute">HS {a.duty.hsCode ?? "未設定"}・{a.duty.rateType === "EPA" ? "協定税率" : "一般税率"}・購入国 {a.purchaseCountry} / 原産国 {a.originCountry ?? "未設定"}</span></p>
           <p>販売手数料（{a.fee.platform}）: {a.fee.rate !== null ? formatPct(D(a.fee.rate), 2) : <span className="text-pass">未確認</span>} <Rel v={a.fee.status} /></p>
           <p>課税事業者区分: {a.businessTaxStatus === "TAXABLE" ? "課税事業者" : a.businessTaxStatus === "EXEMPT" ? "免税事業者" : <span className="text-hold">未設定（低い方を採用）</span>}</p>
           <p>経費プロファイル: {a.expenseConfirmed ? "確認済み" : <span className="text-hold">仮置き</span>} · <Link href="/settings" className="underline">設定</Link></p>
@@ -159,7 +185,12 @@ export default async function ProfitPage({ searchParams }: { searchParams: Promi
         </div>
       </Section>
 
-      <Breakdown a={a} />
+      <div className="mt-6 flex gap-1 text-xs" role="tablist" aria-label="内訳のシナリオ">
+        {(["CONSERVATIVE", "STANDARD", "OPTIMISTIC"] as const).map((n) => (
+          <Link key={n} role="tab" aria-selected={(sp.sc ?? "STANDARD") === n} href={q({ sc: n })} scroll={false} className={`flex-1 rounded-lg border py-2 text-center ${(sp.sc ?? "STANDARD") === n ? "border-silver text-white" : "border-line text-mute"}`}>{scLabel(n)}</Link>
+        ))}
+      </div>
+      <Breakdown a={a} pick={sp.sc} />
 
       <form action={saveScenario} className="mt-6">
         <input type="hidden" name="req" value={JSON.stringify(req)} />
@@ -169,9 +200,11 @@ export default async function ProfitPage({ searchParams }: { searchParams: Promi
   );
 }
 
-function Breakdown({ a }: { a: NonNullable<Awaited<ReturnType<typeof analyze>>> }) {
-  const sc = a.scenarios.find((s) => s.result?.ok && s.name === "STANDARD") ?? a.scenarios.find((s) => s.result?.ok);
-  if (!sc || !sc.result || !sc.result.ok) return null;
+function Breakdown({ a, pick }: { a: NonNullable<Awaited<ReturnType<typeof analyze>>>; pick?: string }) {
+  const want = pick ?? "STANDARD";
+  const sc = a.scenarios.find((s) => s.result?.ok && s.name === want) ?? null;
+  if (!sc || !sc.result || !sc.result.ok)
+    return <p className="mt-2 rounded-lg border border-dashed border-line px-3 py-4 text-center text-sm text-mute">{scLabel(want)}シナリオは売却根拠がないため計算できません</p>;
   const r = sc.result;
   const rows: [string, string, string?][] = [
     ["現地支払額", formatMoney(r.purchaseLocal.paidLocal, a.req.currency), `税 ${r.purchaseLocal.localTax} / 還付見込 ${r.purchaseLocal.localTaxRefund}`],
@@ -180,7 +213,10 @@ function Breakdown({ a }: { a: NonNullable<Awaited<ReturnType<typeof analyze>>> 
     ["課税価格", formatJpy(r.importBreakdown.customsValueJpy), r.importBreakdown.lowValueExempt ? "少額免税適用" : undefined],
     ["関税", formatJpy(r.importBreakdown.dutyJpy)],
     ["輸入消費税（国+地方）", formatJpy(r.importBreakdown.importConsumptionTaxJpy), `課税標準 ${formatJpy(r.importBreakdown.jctBaseJpy)}`],
-    ["取得までの現金支出", formatJpy(r.landedCashOutlayJpy)],
+    ["総仕入原価（現地買付総額）", formatJpy(r.purchaseTotalJpy)],
+    ["輸入後原価 = 資金拘束額", formatJpy(r.landedCashOutlayJpy), "送料・保険・通関・関税・輸入消費税・旅費を含む現金支出"],
+    ["販売手数料", formatJpy(r.costLines.platformFeeJpy)],
+    ["売却後受取額（手数料控除後）", formatJpy(r.saleProceedsJpy), `送料・梱包控除後 ${formatJpy(r.netReceiptJpy)}`],
   ];
   return (
     <Section title={`内訳（${scLabel(sc.name)}シナリオ）`}>
@@ -193,9 +229,9 @@ function Breakdown({ a }: { a: NonNullable<Awaited<ReturnType<typeof analyze>>> 
               <tr><td className="text-mute">売上</td><td className="tnum text-right">{formatJpy(v.revenueJpy)}</td></tr>
               <tr><td className="text-mute">リスク控除（返品・値下げ）</td><td className="tnum text-right">-{formatJpy(v.riskReserveJpy)}</td></tr>
               <tr><td className="text-mute">取得原価</td><td className="tnum text-right">-{formatJpy(v.acquisitionCostJpy)}</td></tr>
-              <tr><td>粗利益</td><td className="tnum text-right">{formatJpy(v.grossProfitJpy)}</td></tr>
+              <tr><td>粗利益（売上−リスク控除−取得原価）</td><td className="tnum text-right">{formatJpy(v.grossProfitJpy)}</td></tr>
               <tr><td className="text-mute">販売経費</td><td className="tnum text-right">-{formatJpy(v.sellingExpensesJpy)}</td></tr>
-              <tr><td>販売経費控除後</td><td className="tnum text-right">{formatJpy(v.profitAfterSellingJpy)}</td></tr>
+              <tr><td>経費控除後利益</td><td className="tnum text-right">{formatJpy(v.profitAfterSellingJpy)}</td></tr>
               <tr><td className="font-semibold">税引前利益</td><td className="tnum text-right font-semibold">{formatJpy(v.preTaxProfitJpy)}</td></tr>
               {v.status === "TAXABLE" && <tr><td className="text-mute">消費税 納付(+)/還付(-)見込</td><td className="tnum text-right">{formatJpy(v.jctSettlementJpy)}</td></tr>}
             </tbody></table>

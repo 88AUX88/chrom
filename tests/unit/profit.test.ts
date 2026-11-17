@@ -207,3 +207,34 @@ describe("消費税区分ごとの控除の扱い", () => {
     expect(acq("SIMPLIFIED")).toBe(acq("EXEMPT"));
   });
 });
+
+describe("指示書の検証項目（追加）", () => {
+  it("販売価格0円: 計算でき、赤字・利益率は算出不能(null)", () => {
+    const i = baseInputs();
+    const r = ok(computeProfit({ ...i, sale: { ...i.sale, priceJpy: "0" } }));
+    expect(D(r.adopted.preTaxProfitJpy).isNegative()).toBe(true);
+    expect(r.adopted.marginRate).toBeNull();
+    expect(r.saleProceedsJpy).toBe("0");
+  });
+  it("手数料の重複がない: 経費控除後 = 粗利益 − (手数料 + 国内送料 + 梱包) を1回だけ", () => {
+    const r = ok(computeProfit(baseInputs()));
+    const v = r.adopted;
+    const selling = Number(r.costLines.platformFeeJpy) + Number(r.costLines.domesticShippingJpy) + Number(r.costLines.packagingJpy);
+    expect(Number(v.sellingExpensesJpy)).toBe(selling);
+    expect(Number(v.grossProfitJpy) - Number(v.profitAfterSellingJpy)).toBe(selling);
+    expect(r.netReceiptJpy).toBe(String(300000 - 30000 - 1100 - 550));
+  });
+  it("極端な為替（1ドル=1円 / 1000円）でも計算が破綻しない", () => {
+    for (const fx of ["1", "1000"]) {
+      const r = ok(computeProfit(baseInputs({ purchase: { ...baseInputs().purchase, fxJpyPerUnit: fx } })));
+      expect(Number.isFinite(Number(r.adopted.preTaxProfitJpy))).toBe(true);
+    }
+    const lo = ok(computeProfit(baseInputs({ purchase: { ...baseInputs().purchase, fxJpyPerUnit: "1" } })));
+    expect(lo.importBreakdown.lowValueExempt).toBe(true); // 課税価格 1,089円 → 少額免税
+  });
+  it("総仕入原価 ≤ 輸入後原価（資金拘束額）", () => {
+    const r = ok(computeProfit(baseInputs()));
+    expect(Number(r.purchaseTotalJpy)).toBe(163313 + 3266);
+    expect(Number(r.landedCashOutlayJpy)).toBeGreaterThan(Number(r.purchaseTotalJpy));
+  });
+});

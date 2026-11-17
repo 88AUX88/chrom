@@ -270,6 +270,9 @@ export function computeProfit(i: ProfitInputs): ProfitOutcome {
     cardFeeJpy: cardFee.toString(),
     importBreakdown: imp,
     landedCashOutlayJpy: yen(landedCash).toString(),
+    purchaseTotalJpy: purchaseJpy.minus(refundJpy).plus(cardFee).toString(),
+    saleProceedsJpy: sale.minus(fee).toString(),
+    netReceiptJpy: sale.minus(fee).minus(ship).minus(pack).toString(),
     costLines: {
       platformFeeJpy: fee.toString(),
       domesticShippingJpy: ship.toString(),

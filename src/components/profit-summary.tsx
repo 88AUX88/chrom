@@ -77,7 +77,7 @@ export function ProfitSummary({ a, priceOrigin }: { a: Analysis; priceOrigin: ke
           <Row label="円換算" value={r ? formatJpy(r.purchaseJpy) : "—"} c={a.certainty.fx} sub={a.fx.rate ? `為替 ${D(a.fx.rate).toString()}円/${cur}（${a.fx.asOf?.slice(0, 10)}）` : "為替未登録"} />
           <Row
             label="関税率 / 関税額"
-            value={<>{a.duty.rate !== null ? formatPct(D(a.duty.rate), 2) : "未確認"} / {r ? formatJpy(r.importBreakdown.dutyJpy) : "—"}</>}
+            value={<>{a.duty.rate !== null ? formatPct(D(a.duty.rate), 2) : "未確認"}{a.dutyAssumed ? "（仮定）" : ""} / {r ? formatJpy(r.importBreakdown.dutyJpy) : "—"}</>}
             c={a.certainty.duty}
             sub={`HS ${a.duty.hsCode ?? "未設定"}・${a.duty.rateType === "EPA" ? "協定(EPA)税率" : "一般税率"}・課税価格 ${r ? formatJpy(r.importBreakdown.customsValueJpy) : "—"}`}
           />
