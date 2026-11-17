@@ -124,7 +124,7 @@ export default async function ProfitPage({ searchParams }: { searchParams: Promi
       {/* 前提 */}
       <Section title="計算の前提">
         <div className="card space-y-1 text-sm">
-          <p>為替: {a.fx.rate ? <>{a.fx.rate}円 <span className="text-mute">（{a.fx.source}, {a.fx.asOf ? new Date(a.fx.asOf).toLocaleString("ja-JP") : ""}）</span></> : <span className="text-pass">未登録</span>}</p>
+          <p>為替: {a.fx.rate ? <>{D(a.fx.rate).toString()}円 <span className="text-mute">（{a.fx.source}, {a.fx.asOf ? new Date(a.fx.asOf).toLocaleString("ja-JP") : ""}）</span></> : <span className="text-pass">未登録</span>}</p>
           <p>関税率（{a.dutyKey.split(":")[1]}）: {a.dutyRate !== null ? formatPct(D(a.dutyRate), 2) : <span className="text-pass">未確認</span>} <Rel v={a.dutyStatus} /></p>
           <p>販売手数料（{a.fee.platform}）: {a.fee.rate !== null ? formatPct(D(a.fee.rate), 2) : <span className="text-pass">未確認</span>} <Rel v={a.fee.status} /></p>
           <p>課税事業者区分: {a.businessTaxStatus === "TAXABLE" ? "課税事業者" : a.businessTaxStatus === "EXEMPT" ? "免税事業者" : <span className="text-hold">未設定（低い方を採用）</span>}</p>
