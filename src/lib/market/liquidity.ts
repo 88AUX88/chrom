@@ -25,7 +25,7 @@ export interface Liquidity {
 }
 
 export function analyzeLiquidity(
-  obs: (Observation & { listedAt?: string | null })[],
+  obs: Observation[],
   variantId: string,
   group: ConditionGroup,
   today: string,

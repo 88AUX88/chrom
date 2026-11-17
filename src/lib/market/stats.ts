@@ -20,6 +20,7 @@ export interface Observation {
   soldAt: string | null;
   externalRef: string | null;
   evidenceUrl?: string | null;
+  listedAt?: string | null;
 }
 
 export type ConditionGroup = "NEW_UNUSED" | "USED" | "ANY";
