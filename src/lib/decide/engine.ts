@@ -52,6 +52,8 @@ export interface DecisionInput {
   results: { CONSERVATIVE: ProfitOutcome | null; STANDARD: ProfitOutcome | null; OPTIMISTIC: ProfitOutcome | null };
   /** 確認できた最高成約価格での利益（赤字判定用） */
   profitAtMaxSold: ProfitOutcome | null;
+  extraBlockers?: { message: string; todo?: string }[];
+  extraWarnings?: string[];
 }
 
 export interface Reason {
@@ -99,7 +101,9 @@ export function decide(input: DecisionInput, st: DecisionSettings): DecisionOutp
   // 4. 前提条件
   if (input.importMode !== "COMMERCIAL")
     blocker("個人使用の特例で計算されています。販売目的の買付には使えません", "輸入区分を「商業輸入」にする");
-  if (input.dutyRateStatus === "UNVERIFIED") blocker("関税率が未確認です", "関税率（HSコード）を税関資料で確認し設定で確定する");
+  if (input.dutyRateStatus === "UNVERIFIED") blocker("関税率が未確認です（HSコードまたは税率が確定していません）", "HSコードと関税率を税関資料で確認し確定する");
+  for (const b of input.extraBlockers ?? []) blocker(b.message, b.todo);
+  for (const w of input.extraWarnings ?? []) reasons.push({ level: "WARNING", message: w });
   if (input.feeRuleStatus === "UNVERIFIED") blocker("販売手数料率が未確認です", "販売先の最新手数料を確認し設定で確定する");
   if (!input.expenseProfileConfirmed)
     blocker("経費プロファイル（カード手数料・送料・旅費等）が未確認の仮置き値です", "設定で経費を確認し「確認済み」にする");

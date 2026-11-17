@@ -83,3 +83,14 @@ export function NavLink({ href, children }: { href: string; children: ReactNode 
     </Link>
   );
 }
+
+const CERT_STYLE: Record<string, string> = {
+  CONFIRMED: "border-buy/60 text-buy",
+  ESTIMATED: "border-hold/60 text-hold",
+  UNVERIFIED: "border-pass/60 text-pass",
+};
+const CERT_LABEL: Record<string, string> = { CONFIRMED: "確定", ESTIMATED: "推定", UNVERIFIED: "未確認" };
+/** 確定値 / 推定値 / 未確認 のバッジ */
+export function Cert({ c }: { c: string }) {
+  return <span className={`inline-block shrink-0 rounded border px-1.5 py-0.5 text-[10px] leading-none ${CERT_STYLE[c] ?? "border-line text-mute"}`}>{CERT_LABEL[c] ?? c}</span>;
+}

@@ -173,3 +173,37 @@ describe("逆算", () => {
     expect(maxPurchasePrice(i, 30000, null)).toBeNull();
   });
 });
+
+describe("消費税区分ごとの控除の扱い", () => {
+  it("簡易課税: 輸入消費税を実額控除しない（原価に含める）。みなし仕入率で納付額を計算", () => {
+    const r = ok(computeProfit({ ...baseInputs(), businessTaxStatus: "SIMPLIFIED", deemedPurchaseRate: "0.8" }));
+    const v = r.adopted;
+    expect(v.status).toBe("SIMPLIFIED");
+    // 取得原価は現金支出（輸入消費税17,000円を含む）
+    expect(v.acquisitionCostJpy).toBe("191679");
+    // 売上の消費税 = 300000 - 300000/1.1 = 27272.73 → 納付 = 20% = 5454.55
+    expect(v.jctSettlementJpy).toBe("5455");
+    // 手残り（精算後）= 免税CF 76671 - 5454.55
+    expect(v.cashAfterJctSettlementJpy).toBe("71216");
+    expect(v.preTaxProfitJpy).toBe("71216");
+  });
+
+  it("簡易課税でみなし仕入率が未設定なら計算しない", () => {
+    const r = computeProfit({ ...baseInputs(), businessTaxStatus: "SIMPLIFIED" });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.missing).toContain("みなし仕入率");
+  });
+
+  it("全区分で 精算後の手残り = 税引前利益（二重計上・控除漏れがない）", () => {
+    for (const st of ["TAXABLE", "EXEMPT", "SIMPLIFIED"] as const) {
+      const r = ok(computeProfit({ ...baseInputs({ importing: { ...baseInputs().importing, customsBrokerFeeJpy: "3300" } }), businessTaxStatus: st, deemedPurchaseRate: "0.8" }));
+      expect(Math.abs(Number(r.adopted.cashAfterJctSettlementJpy) - Number(r.adopted.preTaxProfitJpy))).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("原則課税のみ輸入消費税を控除（免税・簡易は原価に含む）", () => {
+    const acq = (st: "TAXABLE" | "EXEMPT" | "SIMPLIFIED") => Number(ok(computeProfit({ ...baseInputs(), businessTaxStatus: st, deemedPurchaseRate: "0.8" })).adopted.acquisitionCostJpy);
+    expect(acq("EXEMPT") - acq("TAXABLE")).toBe(17000);
+    expect(acq("SIMPLIFIED")).toBe(acq("EXEMPT"));
+  });
+});

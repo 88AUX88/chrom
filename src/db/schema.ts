@@ -350,3 +350,36 @@ export const learningCards = pgTable("learning_cards", {
   lapses: integer("lapses").notNull().default(0),
   dueAt: timestamp("due_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const CERTAINTY = ["CONFIRMED", "ESTIMATED", "UNVERIFIED"] as const;
+/**
+ * 仕様ごとの買付計画（追記型。最新行が有効。過去は履歴として残す）。
+ * 購入国（どこで買うか）と原産国（どこで作られたか）を別項目で保持する。
+ */
+export const variantPlans = pgTable(
+  "variant_plans",
+  {
+    id: serial("id").primaryKey(),
+    variantId: text("variant_id").notNull().references(() => productVariants.id),
+    purchaseCountry: text("purchase_country").notNull(), // 購入国 ISO2
+    currency: text("currency").notNull(),
+    localPrice: numeric("local_price", { precision: 14, scale: 2 }), // 現地価格（不明なら NULL）
+    priceSource: text("price_source").notNull(), // STORE_OBSERVED/OFFICIAL/RECEIPT/BUYER_REPORT/ESTIMATE/UNKNOWN
+    priceObservedAt: date("price_observed_at"),
+    priceEvidenceUrl: text("price_evidence_url"),
+    priceIncludesLocalTax: boolean("price_includes_local_tax").notNull().default(false),
+    localTaxRate: numeric("local_tax_rate", { precision: 8, scale: 6 }).notNull().default("0"),
+    hsCode: text("hs_code"),
+    hsCertainty: text("hs_certainty", { enum: CERTAINTY }).notNull().default("UNVERIFIED"),
+    hsEvidenceUrl: text("hs_evidence_url"),
+    originCountry: text("origin_country"), // 原産国 ISO2（不明なら NULL）
+    originCertainty: text("origin_certainty", { enum: CERTAINTY }).notNull().default("UNVERIFIED"),
+    originEvidence: text("origin_evidence"), // 刻印・タグ・インボイス等
+    originProof: boolean("origin_proof").notNull().default(false), // 原産品申告等で原産性を証明できる
+    plannedSalePriceJpy: numeric("planned_sale_price_jpy", { precision: 14, scale: 0 }), // 日本での売却予定価格（利用者の仮定）
+    platform: text("platform").notNull().default("SNKRDUNK"),
+    notes: text("notes"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("plans_variant_idx").on(t.variantId)],
+);

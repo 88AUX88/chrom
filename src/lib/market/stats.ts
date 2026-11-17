@@ -108,6 +108,13 @@ export interface MarketSummary {
   latestSoldAt: string | null;
 }
 
+/** 集計対象となる成約（同一仕様・状態・期間内・成約日あり・重複除去済み） */
+export function soldObservations(all: Observation[], variantId: string, group: ConditionGroup, windowDays: number, today: string): Observation[] {
+  const within = (d: string | null) => d !== null && daysBetween(d, today) <= windowDays && daysBetween(d, today) >= 0;
+  return dedupe(all.filter((o) => o.variantId === variantId && (group === "ANY" || conditionGroupOf(o.condition) === group)))
+    .filter((o) => SOLD_KINDS.includes(o.kind) && within(o.soldAt));
+}
+
 export function summarizeMarket(
   all: Observation[],
   variantId: string,

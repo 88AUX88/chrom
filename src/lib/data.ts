@@ -224,3 +224,9 @@ export async function recentScenarios(limit = 20) {
 }
 
 export { and, eq, desc, asc };
+
+export async function latestPlan(variantId: string) {
+  const db = await getDb();
+  const [r] = await db.select().from(s.variantPlans).where(eq(s.variantPlans.variantId, variantId)).orderBy(desc(s.variantPlans.id)).limit(1);
+  return r ?? null;
+}

@@ -48,6 +48,11 @@ test.describe.serial("iPhone: 主要操作の通し確認", () => {
     await page.getByRole("button", { name: "この仕様で確定" }).click();
     await expect(page).toHaveURL(new RegExp(`variant=${V}`));
     await expect(page.getByText("この仕様の海外価格データがありません")).toBeVisible();
+    const sum = page.getByTestId("profit-summary");
+    await expect(sum).toBeVisible();
+    await expect(sum.getByText("HOLD", { exact: true })).toBeVisible();
+    await expect(sum).toContainText("価格未登録");
+    await expect(sum).toContainText("HS 7113.11");
     await noHorizontalOverflow(page);
     await page.screenshot({ path: "test-results/iphone-product.png", fullPage: true });
   });
@@ -90,15 +95,25 @@ test.describe.serial("iPhone: 主要操作の通し確認", () => {
     await expect(page.getByText("経費プロファイル").first()).toBeVisible();
   });
 
+  test("簡易課税で、みなし仕入率が未確認なら HOLD（輸入消費税を控除扱いしない）", async ({ page }) => {
+    await login(page);
+    await page.goto("/settings");
+    const dec = page.locator("form", { has: page.locator('select[name="businessTaxStatus"]') });
+    await dec.locator('select[name="businessTaxStatus"]').selectOption("SIMPLIFIED");
+    await dec.getByRole("button").click();
+    await page.goto(`/profit?variant=${V}&country=US&currency=USD&price=500&src=STORE_OBSERVED&taxRate=0.08875&platform=SNKRDUNK`);
+    await expect(page.getByText("簡易課税のみなし仕入率が未確認です")).toBeVisible();
+  });
+
   test("設定: 関税率(テスト値)・手数料・経費・課税区分を確定", async ({ page }) => {
     await login(page);
     await page.goto("/settings");
-    const tax = page.locator("form", { hasText: "新しい版として追加" }).filter({ has: page.locator('select[name="key"]') });
-    await tax.locator('select[name="key"]').selectOption("CUSTOMS_DUTY_RATE:7113.11");
+    const tax = page.locator("form", { has: page.locator('input[name="key"]') });
+    await tax.locator('input[name="key"]').fill("CUSTOMS_DUTY_RATE:7113.11");
     await tax.locator('input[name="value"]').fill("0.05");
     await tax.locator('input[name="evidenceUrl"]').fill("https://tariff.test.invalid/71");
     await tax.getByRole("button").click();
-    await expect(page.locator("tr", { hasText: "CUSTOMS_DUTY_RATE:7113.11" })).toContainText("0.05");
+    await expect(page.locator("tr", { hasText: "CUSTOMS_DUTY_RATE:7113.11" }).first()).toContainText("0.05");
 
     const fee = page.locator("form", { has: page.locator('input[name="feeRate"]') });
     await fee.locator('input[name="feeRate"]').fill("0.1");
@@ -116,6 +131,45 @@ test.describe.serial("iPhone: 主要操作の通し確認", () => {
     await dec.locator('select[name="businessTaxStatus"]').selectOption("EXEMPT");
     await dec.getByRole("button").click();
     await noHorizontalOverflow(page);
+  });
+
+  test("撮影後の商品詳細: 推定HSのままでは HOLD（関税率を確定扱いしない）", async ({ page }) => {
+    await login(page);
+    await page.goto(`/products/ch-paper-chain-necklace?variant=${V}`);
+    const sum = page.getByTestId("profit-summary");
+    await expect(sum.getByText("HOLD", { exact: true })).toBeVisible();
+    // 米国の正規価格が自動で使われる
+    await expect(sum).toContainText("USD 500.00");
+    await expect(sum).toContainText("登録済みの海外正規価格");
+    await expect(sum).toContainText("関税率が未確認です");
+  });
+
+  test("買付計画: 購入国と原産国を区別し、HSを根拠付きで確定 → 商品詳細で BUY と概算利益", async ({ page }) => {
+    await login(page);
+    await page.goto(`/products/ch-paper-chain-necklace?variant=${V}`);
+    const f = page.getByTestId("plan-form");
+    await f.locator('input[name="localPrice"]').fill("500");
+    await f.locator('select[name="priceSource"]').selectOption("STORE_OBSERVED");
+    await f.locator('input[name="localTaxRate"]').fill("0.08875");
+    await f.locator('input[name="originCountry"]').fill("IT");
+    await f.locator('select[name="originCertainty"]').selectOption("ESTIMATED");
+    await f.locator('input[name="hsCode"]').fill("7113.11");
+    await f.locator('select[name="hsCertainty"]').selectOption("CONFIRMED");
+    await f.locator('input[name="hsEvidenceUrl"]').fill("https://tariff.test.invalid/7113");
+    await f.getByRole("button", { name: "買付条件を保存" }).click();
+    const sum = page.getByTestId("profit-summary");
+    await expect(sum.getByText("BUY", { exact: true })).toBeVisible();
+    await expect(sum).toContainText("US / IT");
+    await expect(sum).toContainText("購入国（US）と原産国（IT）は異なります");
+    await expect(sum).toContainText("一般税率");
+    await expect(sum).toContainText("5.00%");
+    await expect(sum).toContainText("手残り（消費税精算後）");
+    await expect(sum).toContainText("最大仕入許容価格");
+    await expect(sum.getByText("確定").first()).toBeVisible();
+    await expect(sum.getByText("推定").first()).toBeVisible();
+    await noHorizontalOverflow(page);
+    await page.screenshot({ path: "test-results/iphone-product-summary.png", fullPage: false });
+    await page.screenshot({ path: "test-results/iphone-product-summary-full.png", fullPage: true });
   });
 
   test("判定: 条件充足で BUY、高値仕入で PASS", async ({ page }) => {

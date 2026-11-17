@@ -13,6 +13,7 @@
 import Decimal from "decimal.js";
 import { D, ZERO, floorTo, yen } from "../money";
 import type {
+  TaxViewStatus,
   ImportBreakdown,
   ProfitInputs,
   ProfitOutcome,
@@ -37,6 +38,7 @@ function requireFields(i: ProfitInputs): string[] {
   if (i.sale.priceJpy === null || i.sale.priceJpy === "") missing.push("想定売却価格");
   if (i.sale.platformFeeRate === null || i.sale.platformFeeRate === "")
     missing.push("販売手数料率");
+  if (i.businessTaxStatus === "SIMPLIFIED" && !i.deemedPurchaseRate) missing.push("みなし仕入率");
   return missing;
 }
 
@@ -72,6 +74,8 @@ function validateNonNegative(i: ProfitInputs): string[] {
   check("その他経費", i.otherCostsJpy);
   if (i.purchase.fxJpyPerUnit && D(i.purchase.fxJpyPerUnit).isZero()) errs.push("為替レートが0です");
   if (D(i.purchase.localTaxRefundRate).greaterThan(1)) errs.push("還付率は1以下である必要があります");
+  if (i.deemedPurchaseRate && (!/^\d+(\.\d+)?$/.test(i.deemedPurchaseRate) || D(i.deemedPurchaseRate).greaterThan(1)))
+    errs.push("みなし仕入率は0〜1である必要があります");
   if (i.sale.platformFeeRate && D(i.sale.platformFeeRate).greaterThanOrEqualTo(1))
     errs.push("販売手数料率は1未満である必要があります");
   return errs;
@@ -182,9 +186,19 @@ export function computeProfit(i: ProfitInputs): ProfitOutcome {
   const exTax = (v: Decimal) => v.dividedBy(D(1).plus(jctRate));
   const taxPart = (v: Decimal) => v.minus(exTax(v));
 
-  const buildView = (status: "TAXABLE" | "EXEMPT"): TaxView => {
+  const buildView = (status: TaxViewStatus): TaxView => {
     let revenue: Decimal, riskR: Decimal, acq: Decimal, selling: Decimal, settlement: Decimal;
-    if (status === "TAXABLE") {
+    let deemedCredit = ZERO;
+    if (status === "SIMPLIFIED") {
+      // 簡易課税: 輸入消費税・国内経費の消費税は実額控除できない → 原価は税込のまま
+      revenue = exTax(sale);
+      riskR = exTax(risk);
+      acq = landedCash;
+      selling = sellingGross;
+      const outputTax = taxPart(sale.minus(risk));
+      deemedCredit = outputTax.times(D(i.deemedPurchaseRate!));
+      settlement = outputTax.minus(deemedCredit);
+    } else if (status === "TAXABLE") {
       revenue = exTax(sale);
       riskR = exTax(risk);
       // 輸入消費税は仕入税額控除の対象 → 取得原価に含めない（二重計上防止）
@@ -214,7 +228,7 @@ export function computeProfit(i: ProfitInputs): ProfitOutcome {
     }
     const gross = revenue.minus(riskR).minus(acq);
     const afterSelling = gross.minus(selling);
-    const preTax = afterSelling.minus(other);
+    const preTax = afterSelling.minus(other).plus(deemedCredit);
     const netRevenue = revenue.minus(riskR);
     return {
       status,
@@ -228,6 +242,8 @@ export function computeProfit(i: ProfitInputs): ProfitOutcome {
       marginRate: netRevenue.isZero() ? null : preTax.dividedBy(netRevenue).toDecimalPlaces(6).toString(),
       roi: landedCash.isZero() ? null : preTax.dividedBy(landedCash).toDecimalPlaces(6).toString(),
       jctSettlementJpy: yen(settlement).toString(),
+      deemedCreditJpy: yen(deemedCredit).toString(),
+      cashAfterJctSettlementJpy: yen(cashFlow.minus(settlement)).toString(),
     };
   };
 
@@ -254,6 +270,17 @@ export function computeProfit(i: ProfitInputs): ProfitOutcome {
     cardFeeJpy: cardFee.toString(),
     importBreakdown: imp,
     landedCashOutlayJpy: yen(landedCash).toString(),
+    costLines: {
+      platformFeeJpy: fee.toString(),
+      domesticShippingJpy: ship.toString(),
+      packagingJpy: pack.toString(),
+      intlShippingJpy: intlShip.toString(),
+      insuranceJpy: insurance.toString(),
+      customsBrokerFeeJpy: broker.toString(),
+      travelAllocationJpy: travel.toString(),
+      otherCostsJpy: other.toString(),
+      riskReserveJpy: risk.toString(),
+    },
     cashFlowBeforeJctSettlementJpy: yen(cashFlow).toString(),
     adopted,
     views,

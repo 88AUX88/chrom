@@ -141,7 +141,7 @@ export async function saveDecisionSettings(f: FormData) {
   const v = DecisionForm.parse(Object.fromEntries(f));
   await setSetting("decision", v);
   const bts = str(f, "businessTaxStatus");
-  if (["TAXABLE", "EXEMPT", "UNKNOWN"].includes(bts)) await setSetting("businessTaxStatus", bts);
+  if (["TAXABLE", "SIMPLIFIED", "EXEMPT", "UNKNOWN"].includes(bts)) await setSetting("businessTaxStatus", bts);
   revalidatePath("/settings");
 }
 
@@ -175,6 +175,7 @@ export async function saveExpenseProfile(f: FormData) {
 export async function addTaxAssumption(f: FormData) {
   const status = str(f, "status") as s.AssumptionStatus;
   if (!s.ASSUMPTION_STATUS.includes(status)) throw new Error("status が不正");
+  if (!/^[A-Z_]+(:[0-9.]+(:EPA:[A-Z]{2})?)?$/.test(str(f, "key"))) throw new Error("項目名の形式が不正です");
   const value = dec(f, "value", { allowEmpty: true });
   if (status !== "UNVERIFIED" && !str(f, "evidenceUrl")) throw new Error("確認済みにするには根拠URLが必要です");
   const db = await getDb();
@@ -237,4 +238,60 @@ export async function gradeCard(cardId: string, grade: 0 | 1 | 2) {
   if (!c) return;
   const next = schedule({ ease: Number(c.ease), intervalDays: c.intervalDays, reps: c.reps, lapses: c.lapses }, grade, new Date());
   await db.update(s.learningCards).set({ ease: next.ease.toFixed(2), intervalDays: next.intervalDays, reps: next.reps, lapses: next.lapses, dueAt: next.dueAt }).where(eq(s.learningCards.id, cardId));
+}
+
+// ───────── 買付計画（購入国・原産国・HS・価格・売却予定） ─────────
+const PRICE_SOURCES = ["STORE_OBSERVED", "OFFICIAL", "RECEIPT", "BUYER_REPORT", "ESTIMATE", "UNKNOWN"];
+export async function savePlan(f: FormData) {
+  const variantId = str(f, "variantId");
+  const productId = str(f, "productId");
+  const cert = (k: string) => {
+    const v = str(f, k);
+    if (!s.CERTAINTY.includes(v as (typeof s.CERTAINTY)[number])) throw new Error(`${k} が不正`);
+    return v as (typeof s.CERTAINTY)[number];
+  };
+  const purchaseCountry = str(f, "purchaseCountry").toUpperCase();
+  const currency = str(f, "currency").toUpperCase();
+  const originCountry = str(f, "originCountry").toUpperCase() || null;
+  const hsCode = str(f, "hsCode") || null;
+  const priceSource = str(f, "priceSource");
+  if (!/^[A-Z]{2}$/.test(purchaseCountry)) throw new Error("購入国は ISO 2文字（例 US）");
+  if (!/^[A-Z]{3}$/.test(currency)) throw new Error("通貨は ISO 3文字（例 USD）");
+  if (originCountry && !/^[A-Z]{2}$/.test(originCountry)) throw new Error("原産国は ISO 2文字");
+  if (hsCode && !/^\d{4}\.\d{2}(\.\d{2,4})?$/.test(hsCode)) throw new Error("HSコードの形式（例 7113.11）");
+  if (!PRICE_SOURCES.includes(priceSource)) throw new Error("価格の根拠が不正");
+  const hsCertainty = hsCode ? cert("hsCertainty") : "UNVERIFIED";
+  const originCertainty = originCountry ? cert("originCertainty") : "UNVERIFIED";
+  const hsEvidenceUrl = str(f, "hsEvidenceUrl") || null;
+  const originEvidence = str(f, "originEvidence") || null;
+  if (hsCertainty === "CONFIRMED" && !hsEvidenceUrl) throw new Error("HSコードを確定にするには根拠URLが必要です");
+  if (originCertainty === "CONFIRMED" && !originEvidence) throw new Error("原産国を確定にするには根拠（刻印・タグ・インボイス等）が必要です");
+  const originProof = str(f, "originProof") === "on";
+  if (originProof && originCertainty !== "CONFIRMED") throw new Error("原産性の証明は原産国が確定している場合のみ");
+  const price = dec(f, "localPrice", { allowEmpty: true });
+  const date = str(f, "priceObservedAt") || null;
+  if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("確認日が不正");
+  const db = await getDb();
+  await db.insert(s.variantPlans).values({
+    variantId,
+    purchaseCountry,
+    currency,
+    localPrice: price,
+    priceSource,
+    priceObservedAt: date,
+    priceEvidenceUrl: str(f, "priceEvidenceUrl") || null,
+    priceIncludesLocalTax: str(f, "priceIncludesLocalTax") === "on",
+    localTaxRate: dec(f, "localTaxRate", { allowEmpty: true }) ?? "0",
+    hsCode,
+    hsCertainty,
+    hsEvidenceUrl,
+    originCountry,
+    originCertainty,
+    originEvidence,
+    originProof,
+    plannedSalePriceJpy: dec(f, "plannedSalePriceJpy", { allowEmpty: true }),
+    platform: str(f, "platform") || "SNKRDUNK",
+    notes: str(f, "notes") || null,
+  });
+  redirect(`/products/${productId}?variant=${encodeURIComponent(variantId)}#summary`);
 }

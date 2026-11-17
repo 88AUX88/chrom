@@ -246,6 +246,13 @@ export const SEED_TAX_ASSUMPTIONS = [
     notes: "個人使用目的の小売段階輸入: 海外小売価格×0.6（関税定率法第4条の6）。販売目的には適用不可。金・白金等の国際相場品は対象外の場合あり",
   },
   {
+    key: "DEEMED_PURCHASE_RATE",
+    value: null,
+    status: "UNVERIFIED" as const,
+    evidenceUrl: "https://www.nta.go.jp/",
+    notes: "簡易課税のみなし仕入率（事業区分により異なる）。簡易課税を選択している場合のみ使用。税理士・国税庁資料で確認",
+  },
+  {
     key: "LOW_VALUE_EXEMPTION_JPY",
     value: "10000",
     status: "UNVERIFIED" as const,

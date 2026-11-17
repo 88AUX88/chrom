@@ -6,8 +6,15 @@
 /** COMMERCIAL: 販売目的の商業輸入 / PERSONAL: 個人使用目的（転売には使えない参考計算） */
 export type ImportMode = "COMMERCIAL" | "PERSONAL";
 
-/** 消費税の納税義務者区分。UNKNOWN の場合は両方で計算し低い方を採用する。 */
-export type BusinessTaxStatus = "TAXABLE" | "EXEMPT" | "UNKNOWN";
+/**
+ * 消費税の納税義務者区分。
+ * - TAXABLE: 課税事業者（原則課税）… 輸入消費税・国内経費の消費税を仕入税額控除できる
+ * - SIMPLIFIED: 課税事業者（簡易課税）… 実額の仕入税額（輸入消費税を含む）は控除できず、みなし仕入率で計算
+ * - EXEMPT: 免税事業者 … 控除なし・納税なし
+ * - UNKNOWN: 原則課税と免税の両方で計算し低い方を採用
+ */
+export type BusinessTaxStatus = "TAXABLE" | "SIMPLIFIED" | "EXEMPT" | "UNKNOWN";
+export type TaxViewStatus = "TAXABLE" | "SIMPLIFIED" | "EXEMPT";
 
 export interface PurchaseInput {
   currency: string; // ISO 4217
@@ -54,6 +61,8 @@ export interface ProfitInputs {
   travelAllocationJpy: string; // 旅費配賦（消費税なし扱い）
   otherCostsJpy: string; // その他経費（消費税なし扱い）
   businessTaxStatus: BusinessTaxStatus;
+  /** 簡易課税のみなし仕入率（例 小売業 0.8）。SIMPLIFIED のとき必須 */
+  deemedPurchaseRate?: string | null;
 }
 
 export interface ImportBreakdown {
@@ -67,7 +76,7 @@ export interface ImportBreakdown {
 }
 
 export interface TaxView {
-  status: "TAXABLE" | "EXEMPT";
+  status: TaxViewStatus;
   revenueJpy: string; // 売上（TAXABLE は税抜）
   riskReserveJpy: string;
   acquisitionCostJpy: string; // 取得原価
@@ -77,7 +86,10 @@ export interface TaxView {
   preTaxProfitJpy: string; // 税引前利益（法人税・所得税は未考慮）
   marginRate: string | null; // 税引前利益 / 売上
   roi: string | null; // 税引前利益 / 投下資金（キャッシュ支出ベース取得原価）
-  jctSettlementJpy: string; // 消費税の納付(+)/還付(-)見込（TAXABLE のみ）
+  jctSettlementJpy: string; // 消費税の納付(+)/還付(-)見込（課税事業者のみ）
+  deemedCreditJpy: string; // 簡易課税: 売上の消費税のうち納付しない部分（みなし仕入控除）
+  /** 消費税精算後の手残り（= 税引前利益と一致することをテストで検証） */
+  cashAfterJctSettlementJpy: string;
 }
 
 export interface ProfitResult {
@@ -93,6 +105,18 @@ export interface ProfitResult {
   importBreakdown: ImportBreakdown;
   /** 取得までの現金支出合計（輸入消費税・旅費含む） */
   landedCashOutlayJpy: string;
+  /** 費用の内訳（すべて円・税込の現金ベース。UI はこれを表示し再計算しない） */
+  costLines: {
+    platformFeeJpy: string;
+    domesticShippingJpy: string;
+    packagingJpy: string;
+    intlShippingJpy: string;
+    insuranceJpy: string;
+    customsBrokerFeeJpy: string;
+    travelAllocationJpy: string;
+    otherCostsJpy: string;
+    riskReserveJpy: string;
+  };
   /** 売却完了時点の税引前キャッシュフロー（消費税精算前） */
   cashFlowBeforeJctSettlementJpy: string;
   /** 採用ビュー（UNKNOWN の場合は低い方） */

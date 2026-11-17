@@ -35,7 +35,7 @@ export default async function Settings() {
           <F label="成約不足時の追加値引き" name="thinDataHaircut" def={d.thinDataHaircut} />
           <label className="block text-xs text-mute">消費税の課税事業者区分
             <select name="businessTaxStatus" defaultValue={bts} className="field mt-1">
-              <option value="UNKNOWN">未設定（両方計算し低い方）</option><option value="TAXABLE">課税事業者</option><option value="EXEMPT">免税事業者</option>
+              <option value="UNKNOWN">未設定（原則課税・免税の低い方）</option><option value="TAXABLE">課税事業者（原則課税）</option><option value="SIMPLIFIED">課税事業者（簡易課税）</option><option value="EXEMPT">免税事業者</option>
             </select>
             <span className="mt-0.5 block text-[10px]">インボイス登録・簡易課税等は税理士に確認</span>
           </label>
@@ -72,7 +72,9 @@ export default async function Settings() {
         </div>
         <form action={addTaxAssumption} className="card mt-2 grid grid-cols-2 gap-2">
           <label className="col-span-2 block text-xs text-mute">項目
-            <select name="key" className="field mt-1">{taxes.map((t) => <option key={t.key}>{t.key}</option>)}</select>
+            <input name="key" list="tax-keys" required placeholder="例 CUSTOMS_DUTY_RATE:7113.11" className="field mt-1" />
+            <datalist id="tax-keys">{[...new Set([...taxes.map((t) => t.key), "DEEMED_PURCHASE_RATE", "CUSTOMS_DUTY_RATE:7113.11:EPA:US", "CUSTOMS_DUTY_RATE:7113.19:EPA:US", "CUSTOMS_DUTY_RATE:7113.11:EPA:EU", "CUSTOMS_DUTY_RATE:7113.11:EPA:GB"])].map((k) => <option key={k} value={k} />)}</datalist>
+            <span className="mt-0.5 block text-[10px]">一般税率: CUSTOMS_DUTY_RATE:HS / 協定税率: CUSTOMS_DUTY_RATE:HS:EPA:原産国 / 簡易課税: DEEMED_PURCHASE_RATE</span>
           </label>
           <F label="値（率は 0.052 形式）" name="value" def="" />
           <label className="block text-xs text-mute">状態<select name="status" className="field mt-1"><option value="USER_CONFIRMED">本人確認済</option><option value="VERIFIED">一次資料で確認済</option><option value="UNVERIFIED">未確認</option></select></label>

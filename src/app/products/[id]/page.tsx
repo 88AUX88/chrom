@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { buybackFor, getDecisionSettings, getProduct, marketObservationsFor, retailPricesFor } from "@/lib/data";
+import { buybackFor, currentFeeRules, getDecisionSettings, getProduct, latestPlan, marketObservationsFor, retailPricesFor } from "@/lib/data";
+import { summaryFor } from "@/lib/summary";
+import { defaultHsForMaterial } from "@/lib/profit/duty";
+import { ProfitSummary } from "@/components/profit-summary";
+import { PlanForm } from "./plan-form";
 import { summarizeMarket, isStale, type ConditionGroup } from "@/lib/market/stats";
 import { formatJpy, formatMoney } from "@/lib/money";
 import { CATEGORY_LABEL, MATERIAL_LABEL, variantLabel } from "@/lib/settings-defaults";
@@ -28,6 +32,7 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
   const m30 = selected ? summarizeMarket(obs, selected.id, cond, 30, today) : null;
   const m90 = selected ? summarizeMarket(obs, selected.id, cond, 90, today) : null;
   const sameVariantObs = selected ? obs.filter((o) => o.variantId === selected.id) : [];
+  const [summary, plan, fees] = selected ? await Promise.all([summaryFor(selected.id, cond), latestPlan(selected.id), currentFeeRules()]) : [null, null, []];
   const opts = p.variantOptions;
 
   return (
@@ -39,8 +44,15 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
           // eslint-disable-next-line @next/next/no-img-element
           <img key={i.id} src={i.dataUrl!} alt={i.caption ?? p.nameEn} className="h-64 w-64 shrink-0 snap-center rounded-xl border border-line object-cover" />
         ))}
-        {images.filter((i) => i.dataUrl).length === 0 && <div className="flex h-40 w-full items-center justify-center rounded-xl border border-dashed border-line text-sm text-mute">参照画像未登録（自分で撮影した画像のみ登録可）</div>}
+        {images.filter((i) => i.dataUrl).length === 0 && <div className="flex h-11 w-full items-center justify-center rounded-lg border border-dashed border-line text-xs text-mute">参照画像未登録（自分で撮影した画像のみ・下部から登録）</div>}
       </div>
+
+      {selected && summary && (
+        <div id="summary">
+          <p className="mt-4 text-sm text-silver">確定した仕様: {variantLabel(selected)}</p>
+          <ProfitSummary a={summary.a} priceOrigin={summary.priceOrigin} />
+        </div>
+      )}
 
       {p.catalogStatus === "UNVERIFIED" && <div className="mt-3"><Warn>この商品の名称・仕様は未検証です。公式情報・実物で確認してください。</Warn></div>}
       <div className="card mt-3 space-y-1 text-sm">
@@ -98,6 +110,17 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
               <Link href={`/compare?variant=${encodeURIComponent(selected.id)}`} className="btn">国・販売先比較</Link>
             </div>
           </div>
+
+          <Section title="買付条件（購入国・原産国・HSコード・価格・売却予定）">
+            <PlanForm
+              productId={p.id}
+              variantId={selected.id}
+              material={selected.material}
+              defaultHs={defaultHsForMaterial(selected.material)}
+              plan={plan ? { ...plan, localPrice: plan.localPrice === null ? null : String(plan.localPrice), localTaxRate: String(plan.localTaxRate), plannedSalePriceJpy: plan.plannedSalePriceJpy === null ? null : String(plan.plannedSalePriceJpy) } : null}
+              platforms={fees.map((f) => f.platform)}
+            />
+          </Section>
 
           <Section title="PRICE｜各国の正規価格（出典付き）">
             {retail.length === 0 ? <Empty>この仕様の海外価格データがありません。<Link href="/import" className="underline">取込</Link></Empty> : (
