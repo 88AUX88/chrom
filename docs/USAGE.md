@@ -19,6 +19,11 @@ npm start
 ブラウザで http://localhost:3000 を開き、パスワードでログイン。
 DB は `./.data/pglite` に自動作成（Mac 内のみ。バックアップは「履歴 → 全データ JSON」）。
 
+## ログインできないとき
+1. `npm run doctor` … 設定を点検（パスワードの中身は表示しません）
+2. `npm run set-password` … パスワードを作り直す（入力は表示されません。元の設定は .env.local.bak に保存）
+3. アプリを起動し直す（control+C → `npm start`）。設定ファイルは起動したときにだけ読み込まれます
+
 ## iPhone / iPad から確認する条件
 - **同じ Wi-Fi** に Mac と iPhone がつながっていること
 - Mac 側で `.env.local` に `COOKIE_SECURE=false` を追加し、`npm run build && npm start -- -H 0.0.0.0` で起動

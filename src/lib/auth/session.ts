@@ -22,13 +22,25 @@ export function safeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
+/** 設定ファイルの値（前後の空白・改行は取り除く。貼り付け時の混入対策） */
+const appPassword = () => (process.env.APP_PASSWORD ?? "").trim();
+const sessionSecret = () => (process.env.SESSION_SECRET ?? "").trim();
+
+/** 認証設定の状態（値そのものは返さない） */
+export function authConfigStatus(): "OK" | "NO_PASSWORD" | "NO_SECRET" | "SHORT_SECRET" {
+  if (!appPassword()) return "NO_PASSWORD";
+  if (!sessionSecret()) return "NO_SECRET";
+  if (sessionSecret().length < 32) return "SHORT_SECRET";
+  return "OK";
+}
+
 export function authConfigured(): boolean {
-  return !!process.env.APP_PASSWORD && !!process.env.SESSION_SECRET && process.env.SESSION_SECRET.length >= 32;
+  return authConfigStatus() === "OK";
 }
 
 export async function createSessionValue(nowSec = Math.floor(Date.now() / 1000)): Promise<string> {
   const exp = nowSec + SESSION_TTL_SEC;
-  return `${exp}.${await hmacHex(process.env.SESSION_SECRET!, `v1:${exp}`)}`;
+  return `${exp}.${await hmacHex(sessionSecret(), `v1:${exp}`)}`;
 }
 
 export async function verifySessionValue(v: string | undefined, nowSec = Math.floor(Date.now() / 1000)): Promise<boolean> {
@@ -36,10 +48,10 @@ export async function verifySessionValue(v: string | undefined, nowSec = Math.fl
   const [expStr, sig] = v.split(".");
   const exp = Number(expStr);
   if (!Number.isInteger(exp) || exp < nowSec || !sig) return false;
-  return safeEqual(sig, await hmacHex(process.env.SESSION_SECRET!, `v1:${exp}`));
+  return safeEqual(sig, await hmacHex(sessionSecret(), `v1:${exp}`));
 }
 
 export function checkPassword(input: string): boolean {
   if (!authConfigured()) return false;
-  return safeEqual(input, process.env.APP_PASSWORD!);
+  return safeEqual(input.trim(), appPassword());
 }

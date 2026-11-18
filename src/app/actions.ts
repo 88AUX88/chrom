@@ -7,7 +7,7 @@ import { z } from "zod";
 import { getDb } from "@/db/client";
 import * as s from "@/db/schema";
 import { afterFailure, lockedMinutes } from "@/lib/auth/throttle";
-import { checkPassword, createSessionValue, SESSION_COOKIE, SESSION_TTL_SEC, verifySessionValue } from "@/lib/auth/session";
+import { authConfigStatus, checkPassword, createSessionValue, SESSION_COOKIE, SESSION_TTL_SEC, verifySessionValue } from "@/lib/auth/session";
 import { ensureVariant, getExpenseProfile, setSetting } from "@/lib/data";
 import { parseStrictDecimal } from "@/lib/money";
 import { schedule } from "@/lib/learn/cards";
@@ -38,10 +38,16 @@ export async function login(_: unknown, f: FormData): Promise<{ error?: string }
   if (min > 0) {
     return { error: `ログインの失敗が続いたため、一時的にロックしています。約${min}分後にもう一度お試しください。` };
   }
+  // 設定の問題はパスワード違いと区別して伝える（値は表示しない）
+  const cfg = authConfigStatus();
+  if (cfg !== "OK") {
+    const why = cfg === "NO_PASSWORD" ? "APP_PASSWORD が見つかりません" : cfg === "NO_SECRET" ? "SESSION_SECRET が見つかりません" : "SESSION_SECRET が短すぎます（32文字以上が必要）";
+    return { error: `アプリの設定が読み込めていません（${why}）。設定ファイル .env.local を確認し、アプリを起動し直してください。` };
+  }
   if (!checkPassword(str(f, "password"))) {
     const next = afterFailure(rec, now);
     await db.insert(s.loginAttempts).values({ key, ...next }).onConflictDoUpdate({ target: s.loginAttempts.key, set: next });
-    return { error: "パスワードが違うか、サーバー側の認証設定（APP_PASSWORD / SESSION_SECRET）がありません。" };
+    return { error: "パスワードが違います。（パスワードを作り直した場合は、アプリを起動し直してください）" };
   }
   if (rec) await db.delete(s.loginAttempts).where(eq(s.loginAttempts.key, key));
   (await cookies()).set(SESSION_COOKIE, await createSessionValue(), {

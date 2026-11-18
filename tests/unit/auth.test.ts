@@ -41,3 +41,21 @@ describe("ログインの回数制限", () => {
     expect(later.failures).toBe(1);
   });
 });
+
+import { authConfigStatus } from "@/lib/auth/session";
+describe("認証設定の状態と空白の扱い", () => {
+  it("設定の不足を区別し、前後の空白は無視して照合する", () => {
+    process.env.SESSION_SECRET = "y".repeat(40);
+    delete process.env.APP_PASSWORD;
+    expect(authConfigStatus()).toBe("NO_PASSWORD");
+    process.env.APP_PASSWORD = "  pass1234 \n";
+    expect(authConfigStatus()).toBe("OK");
+    expect(checkPassword("pass1234")).toBe(true);
+    expect(checkPassword(" pass1234 ")).toBe(true);
+    expect(checkPassword("pass123")).toBe(false);
+    process.env.SESSION_SECRET = "short";
+    expect(authConfigStatus()).toBe("SHORT_SECRET");
+    delete process.env.SESSION_SECRET;
+    expect(authConfigStatus()).toBe("NO_SECRET");
+  });
+});
