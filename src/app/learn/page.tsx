@@ -22,7 +22,7 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
       <PageTitle label="学習" title={d ? `${d}日目` : "今日の復習"} sub="1日15分。価格の暗記ではなく、識別と判断の型を身につけます。" />
       <div className="mb-4 grid grid-cols-7 gap-1 text-center text-xs">
         {progress.map((p) => (
-          <Link key={p.n} href={`/learn?day=${p.n}`} className={`rounded border py-2 ${d === p.n ? "border-silver" : "border-line"}`}>D{p.n}<span className="block text-[10px] text-mute">{p.done}/{p.total}</span></Link>
+          <Link key={p.n} href={`/learn?day=${p.n}`} className={`rounded border py-2 ${d === p.n ? "border-silver" : "border-line"}`}>{p.n}日<span className="block text-[10px] text-mute">{p.done}/{p.total}</span></Link>
         ))}
       </div>
       <div className="mb-3 flex flex-wrap gap-3 text-xs">
