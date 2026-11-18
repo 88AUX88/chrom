@@ -22,7 +22,14 @@ async function init(): Promise<DB> {
     const { drizzle } = await import("drizzle-orm/postgres-js");
     const postgres = (await import("postgres")).default;
     const client = postgres(url, { prepare: false, max: 3 });
-    const db = drizzle(client, { schema }) as unknown as DB;
+    const pgDb = drizzle(client, { schema });
+    // postgres-js の execute() は配列を返す。PGlite と同じ { rows } 形式にそろえる（画面側のコードを共通化するため）
+    const rawExecute = pgDb.execute.bind(pgDb);
+    (pgDb as unknown as { execute: (q: unknown) => Promise<{ rows: unknown[] }> }).execute = async (q: unknown) => {
+      const r = await rawExecute(q as Parameters<typeof rawExecute>[0]);
+      return { rows: Array.from(r as unknown as unknown[]) };
+    };
+    const db = pgDb as unknown as DB;
     await seedIfEmpty(db);
     return db;
   }

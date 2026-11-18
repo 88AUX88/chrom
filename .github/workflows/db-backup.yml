@@ -1,0 +1,62 @@
+# 毎日のデータベース・バックアップ（暗号化して 90 日保管）
+# 必要な Secrets（GitHub → Settings → Secrets and variables → Actions）:
+#   BACKUP_DATABASE_URL … 本番データベースの接続文字列（Vercel の DATABASE_URL と同じ値）
+#   BACKUP_PASSPHRASE  … バックアップ暗号化用の長いパスワード（復元に必要。別の場所にも控える）
+name: daily-db-backup
+
+on:
+  schedule:
+    - cron: "17 18 * * *" # 毎日 03:17（日本時間）
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: リポジトリが非公開であることを確認（公開リポジトリではバックアップを作らない）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          private=$(gh api "repos/${{ github.repository }}" --jq .private)
+          if [ "$private" != "true" ]; then
+            echo "::error::リポジトリが公開(public)のため、バックアップを中止しました。非公開(private)に変更してください。"
+            exit 1
+          fi
+
+      - name: 設定（Secrets）の確認
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$DATABASE_URL" ] || [ -z "$PASSPHRASE" ]; then
+            echo "::error::BACKUP_DATABASE_URL と BACKUP_PASSPHRASE を Secrets に登録してください。"
+            exit 1
+          fi
+
+      - name: データベースを書き出して暗号化
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          stamp=$(date -u +%Y%m%d-%H%M)
+          mkdir -p out
+          # サーバーより新しい pg_dump を使う（Postgres 17 クライアント）
+          docker run --rm -e DATABASE_URL postgres:17 sh -c 'pg_dump --format=custom --no-owner --no-privileges "$DATABASE_URL"' > out/db.dump
+          test -s out/db.dump
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$PASSPHRASE" --symmetric --cipher-algo AES256 -o "out/lmi-${stamp}.dump.gpg" out/db.dump
+          rm out/db.dump
+          ls -l out
+
+      - name: 保管（90日）
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.run_id }}
+          path: out/*.gpg
+          retention-days: 90
+          if-no-files-found: error

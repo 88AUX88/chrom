@@ -13,7 +13,9 @@ export async function seedIfEmpty(db: DB): Promise<void> {
   const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(s.brands);
   if (n > 0) return;
   await db.transaction(async (tx) => {
-    await tx.insert(s.brands).values(SEED_BRANDS);
+    // 同時に複数のサーバーが起動しても二重登録しない（先に入れた側だけが続きを実行）
+    const inserted = await tx.insert(s.brands).values(SEED_BRANDS).onConflictDoNothing().returning({ id: s.brands.id });
+    if (inserted.length === 0) return;
     for (const p of SEED_PRODUCTS) {
       await tx.insert(s.products).values({
         id: p.id,

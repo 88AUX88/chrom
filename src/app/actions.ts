@@ -1,11 +1,12 @@
 "use server";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db/client";
 import * as s from "@/db/schema";
+import { afterFailure, lockedMinutes } from "@/lib/auth/throttle";
 import { checkPassword, createSessionValue, SESSION_COOKIE, SESSION_TTL_SEC, verifySessionValue } from "@/lib/auth/session";
 import { ensureVariant, getExpenseProfile, setSetting } from "@/lib/data";
 import { parseStrictDecimal } from "@/lib/money";
@@ -26,9 +27,23 @@ const dec = (f: FormData, k: string, opts: { allowEmpty?: boolean } = {}) => {
 
 // ───────── 認証 ─────────
 export async function login(_: unknown, f: FormData): Promise<{ error?: string }> {
-  // 総当たり対策の遅延
+  // 総当たり対策: 遅延 + 15分間に10回失敗したら15分ロック（DBで管理）
   await new Promise((r) => setTimeout(r, 400));
-  if (!checkPassword(str(f, "password"))) return { error: "パスワードが違うか、サーバー側の認証設定（APP_PASSWORD / SESSION_SECRET）がありません。" };
+  const h = await headers();
+  const key = (h.get("x-forwarded-for")?.split(",")[0] ?? h.get("x-real-ip") ?? "unknown").trim().slice(0, 64);
+  const db = await getDb();
+  const now = new Date();
+  const [rec] = await db.select().from(s.loginAttempts).where(eq(s.loginAttempts.key, key));
+  const min = lockedMinutes(rec, now);
+  if (min > 0) {
+    return { error: `ログインの失敗が続いたため、一時的にロックしています。約${min}分後にもう一度お試しください。` };
+  }
+  if (!checkPassword(str(f, "password"))) {
+    const next = afterFailure(rec, now);
+    await db.insert(s.loginAttempts).values({ key, ...next }).onConflictDoUpdate({ target: s.loginAttempts.key, set: next });
+    return { error: "パスワードが違うか、サーバー側の認証設定（APP_PASSWORD / SESSION_SECRET）がありません。" };
+  }
+  if (rec) await db.delete(s.loginAttempts).where(eq(s.loginAttempts.key, key));
   (await cookies()).set(SESSION_COOKIE, await createSessionValue(), {
     httpOnly: true,
     // 本番(HTTPS)では secure。自宅LANで http://<MacのIP>:3000 を iPhone から試す場合のみ COOKIE_SECURE=false

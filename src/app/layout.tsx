@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   description: "海外ブランド買付判断システム",
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "CH買付", statusBarStyle: "black-translucent" },
-  icons: { icon: "/icon.svg", apple: "/icon.svg" },
+  icons: { icon: "/icon.svg", apple: "/apple-touch-icon.png" },
   robots: { index: false, follow: false },
 };
 export const viewport: Viewport = { themeColor: "#0a0a0b", width: "device-width", initialScale: 1, viewportFit: "cover" };

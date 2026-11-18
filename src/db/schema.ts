@@ -412,3 +412,11 @@ export const changeLog = pgTable(
   },
   (t) => [index("change_log_entity_idx").on(t.entity, t.entityId)],
 );
+
+/** ログイン失敗の記録（総当たり対策。サーバーが複数台でも共有できるよう DB に保存） */
+export const loginAttempts = pgTable("login_attempts", {
+  key: text("key").primaryKey(), // IP アドレス等
+  failures: integer("failures").notNull().default(0),
+  windowStart: timestamp("window_start", { withTimezone: true }).notNull().defaultNow(),
+  lockedUntil: timestamp("locked_until", { withTimezone: true }),
+});

@@ -26,3 +26,18 @@ describe("セッション", () => {
     expect(checkPassword("correct horse")).toBe(false);
   });
 });
+
+import { afterFailure, lockedMinutes, LOGIN_MAX_FAILURES } from "@/lib/auth/throttle";
+describe("ログインの回数制限", () => {
+  it("10回失敗で15分ロック、時間がたてば解除、期間外の失敗は数え直し", () => {
+    const t0 = new Date("2026-11-18T00:00:00Z");
+    let rec = undefined as ReturnType<typeof afterFailure> | undefined;
+    for (let i = 0; i < LOGIN_MAX_FAILURES - 1; i++) rec = afterFailure(rec, new Date(t0.getTime() + i * 1000));
+    expect(lockedMinutes(rec, new Date(t0.getTime() + 20000))).toBe(0);
+    rec = afterFailure(rec, new Date(t0.getTime() + 20000));
+    expect(lockedMinutes(rec, new Date(t0.getTime() + 21000))).toBe(15);
+    expect(lockedMinutes(rec, new Date(t0.getTime() + 16 * 60000))).toBe(0);
+    const later = afterFailure({ failures: 5, windowStart: t0, lockedUntil: null }, new Date(t0.getTime() + 20 * 60000));
+    expect(later.failures).toBe(1);
+  });
+});

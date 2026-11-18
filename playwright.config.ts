@@ -27,6 +27,6 @@ export default defineConfig({
     url: `http://localhost:${PORT}/login`,
     reuseExistingServer: false,
     timeout: 120000,
-    env: { APP_PASSWORD: "e2e-password", SESSION_SECRET: "e2e-session-secret-0123456789abcdef0123", PGLITE_DIR: dbDir, NODE_ENV: "production" },
+    env: { ...(process.env.E2E_DATABASE_URL ? { DATABASE_URL: process.env.E2E_DATABASE_URL } : {}), APP_PASSWORD: "e2e-password", SESSION_SECRET: "e2e-session-secret-0123456789abcdef0123", PGLITE_DIR: dbDir, NODE_ENV: "production" },
   },
 });
