@@ -32,7 +32,7 @@
 MVP ではサーバーログ（Vercel Logs）のみ。エラー監視サービスは未導入（Phase 4）。
 
 ## iPhone（Claude Code クラウド版）からの開発継続
-- リポジトリ: https://github.com/88AUX88/chrom（main）
+- リポジトリ: https://github.com/88AUX88/chrom（ブランチ chrome-hearts）
 - クラウド環境「chrom」: セッション開始時に `npm ci` を自動実行（setup script）。新しいセッションはこの環境を選んで開始する
 - 動作確認: セッション内で `.env.local` に APP_PASSWORD / SESSION_SECRET を作成（コミットしない）→ `npm run build && npm start` → アプリのプレビューで確認
 - セッション内の DB（PGlite, `.data/`）はコンテナと共に消える。残すべきデータは /api/export で保存するか本番 DB を使う
