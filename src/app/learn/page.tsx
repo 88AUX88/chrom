@@ -19,7 +19,7 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
   const progress = [1, 2, 3, 4, 5, 6, 7].map((n) => { const c = all.filter((x) => x.day === n); return { n, total: c.length, done: c.filter((x) => x.reps > 0).length }; });
   return (
     <main>
-      <PageTitle label="学習" title={d ? `Day ${d}` : "今日の復習"} sub="1日15分。価格の暗記ではなく、識別と判断の型を身につけます。" />
+      <PageTitle label="学習" title={d ? `${d}日目` : "今日の復習"} sub="1日15分。価格の暗記ではなく、識別と判断の型を身につけます。" />
       <div className="mb-4 grid grid-cols-7 gap-1 text-center text-xs">
         {progress.map((p) => (
           <Link key={p.n} href={`/learn?day=${p.n}`} className={`rounded border py-2 ${d === p.n ? "border-silver" : "border-line"}`}>D{p.n}<span className="block text-[10px] text-mute">{p.done}/{p.total}</span></Link>
@@ -31,7 +31,7 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
         <span className="text-mute">学習済み {all.filter((x) => x.reps > 0).length} / {all.length}</span>
       </div>
       <Quiz cards={cards.map((c) => ({ id: c.id, kind: c.kind, prompt: c.prompt, choices: c.choices, answerIndex: c.answerIndex, explanation: c.explanation, isIllustrative: c.isIllustrative }))} />
-      <p className="mt-6 text-xs text-mute">商品名カードは未検証カタログに基づきます。写真クイズ（Day 7）は、商品詳細で自分で撮影した参照画像を登録すると自動で追加されます（AI生成画像は使いません）。</p>
+      <p className="mt-6 text-xs text-mute">商品名カードは未検証カタログに基づきます。写真クイズ（7日目）は、商品詳細で自分で撮影した参照画像を登録すると自動で追加されます（AI生成画像は使いません）。</p>
     </main>
   );
 }

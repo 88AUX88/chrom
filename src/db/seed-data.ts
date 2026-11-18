@@ -163,7 +163,7 @@ export const SEED_PRODUCTS: SeedProduct[] = [
     id: "ch-forever-spacer-ring",
     nameEn: "Forever Spacer Ring",
     nameJaReading: "フォーエバー スペーサー リング",
-    features: "細身のバンドに「FOREVER」の刻印。幅違い（3mm/6mm等）があれば size_label に含めて管理。",
+    features: "細身のバンドに「FOREVER」の刻印。幅（3mm・6mm など）の違いがあれば、サイズと一緒に記録する。",
     confusableWith: ["ch-plain-spacer-ring"],
     aliases: ["フォーエバー", "フォーエバースペーサー"],
   }),

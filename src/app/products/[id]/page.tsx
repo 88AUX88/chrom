@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { buybackFor, currentFeeRules, getDecisionSettings, getProduct, latestPlan, marketObservationsFor, retailPricesFor } from "@/lib/data";
+import { listProducts, buybackFor, currentFeeRules, getDecisionSettings, getProduct, latestPlan, marketObservationsFor, retailPricesFor } from "@/lib/data";
 import { summaryFor } from "@/lib/summary";
 import { defaultHsForMaterial } from "@/lib/profit/duty";
 import { ProfitSummary } from "@/components/profit-summary";
@@ -24,6 +24,8 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
   if (!data) notFound();
   const { product: p, variants, images, aliases } = data;
   const selected = variants.find((v) => v.id === sp.variant) ?? null;
+  // 誤認しやすい商品は日本語の読みで表示（リンク先は商品ID）
+  const confusableNames = new Map((await listProducts()).filter((x) => p.confusableWith.includes(x.id)).map((x) => [x.id, x.nameJaReading]));
   const today = new Date().toISOString().slice(0, 10);
   const settings = await getDecisionSettings();
   const cond = (sp.cond as ConditionGroup) || "NEW_UNUSED";
@@ -68,7 +70,7 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
         <p><span className="text-mute">出典: </span><ExtLink href={p.sourceUrl} /><span className="text-mute"> ／ 確認日: </span>{p.verifiedAt ?? "未確認"}<span className="text-mute"> ／ 更新: </span>{new Date(p.updatedAt).toISOString().slice(0, 10)}</p>
         {aliases.length > 0 && <p><span className="text-mute">別名: </span>{aliases.map((a) => a.alias).join("、")}</p>}
         {p.confusableWith.length > 0 && (
-          <p><span className="text-pass">誤認注意: </span>{p.confusableWith.map((c) => <Link key={c} href={`/products/${c}`} className="mr-2 underline">{c}</Link>)}</p>
+          <p><span className="text-pass">誤認注意: </span>{p.confusableWith.map((c) => <Link key={c} href={`/products/${c}`} className="mr-2 underline">{confusableNames.get(c) ?? c}</Link>)}</p>
         )}
       </div>
 

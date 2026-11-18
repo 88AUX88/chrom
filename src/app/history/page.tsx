@@ -101,7 +101,7 @@ export default async function History({ searchParams }: { searchParams: Promise<
       <Section title="エクスポート / バックアップ">
         <div className="card flex flex-wrap gap-2 text-sm">
           <a className="btn" href="/api/export?table=all">全データ JSON</a>
-          {["buying_scenarios", "purchases", "sales", "market_observations", "retail_prices"].map((t) => <a key={t} className="btn" href={`/api/export?table=${t}`}>{t}.csv</a>)}
+          {([["buying_scenarios", "判定履歴"], ["purchases", "購入記録"], ["sales", "販売記録"], ["market_observations", "国内外の相場"], ["retail_prices", "正規店の価格"]] as const).map(([t, l]) => <a key={t} className="btn" href={`/api/export?table=${t}`}>{l}（CSV）</a>)}
         </div>
       </Section>
     </main>

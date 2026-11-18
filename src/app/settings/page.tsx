@@ -4,6 +4,15 @@ import { addFeeRule, addFxRate, addTaxAssumption, saveDecisionSettings, saveExpe
 import { identifyConfigured } from "@/lib/identify/identify";
 import { SubmitButton } from "@/components/submit-button";
 
+/** 税の前提の項目名（プログラム用の記号）を日本語の名前にする */
+function taxLabel(key: string): string {
+  const m = /^CUSTOMS_DUTY_RATE:([\d.]+)(?::EPA:([A-Z]{2}))?$/.exec(key);
+  if (m) return m[2] ? `関税率・協定税率（HS ${m[1]}、原産国 ${m[2]}）` : `関税率（HS ${m[1]}）`;
+  return (
+    { JCT_NATIONAL_RATE: "消費税率（国の分）", JCT_LOCAL_RATIO: "地方消費税の割合", PERSONAL_USE_FACTOR: "個人使用の特例の係数（販売目的では使わない）", LOW_VALUE_EXEMPTION_JPY: "少額免税の上限（円）", DEEMED_PURCHASE_RATE: "簡易課税のみなし仕入率" } as Record<string, string>
+  )[key] ?? key;
+}
+
 function F({ label, name, def, hint, type = "text", numeric = true }: { label: string; name: string; def: string | number; hint?: string; type?: string; numeric?: boolean }) {
   return (
     <label className="block text-xs text-mute">
@@ -71,7 +80,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
       <Section title="税の前提（関税率など）">
         <div className="card overflow-x-auto p-3">
           <table className="data"><thead><tr><th>項目</th><th>値</th><th>状態</th><th>根拠</th></tr></thead>
-            <tbody>{taxes.map((t) => <tr key={t.id}><td className="text-xs">{t.key}<span className="block text-[10px] text-mute">{t.notes}</span></td><td className="tnum">{t.value ?? "—"}</td><td><Rel v={t.status} /></td><td className="text-xs"><ExtLink href={t.evidence_url} /></td></tr>)}</tbody>
+            <tbody>{taxes.map((t) => <tr key={t.id}><td className="text-xs">{taxLabel(t.key)}<span className="block text-[10px] text-mute">{t.key} · {t.notes}</span></td><td className="tnum">{t.value ?? "—"}</td><td><Rel v={t.status} /></td><td className="text-xs"><ExtLink href={t.evidence_url} /></td></tr>)}</tbody>
           </table>
         </div>
         <form action={addTaxAssumption} className="card mt-2 grid grid-cols-2 gap-2">
