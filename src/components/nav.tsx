@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 
 const TABS = [
   { href: "/", label: "ホーム", icon: "M3 11l9-7 9 7v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z" },
-  { href: "/scan", label: "SCAN", icon: "M4 8V5a1 1 0 011-1h3M16 4h3a1 1 0 011 1v3M20 16v3a1 1 0 01-1 1h-3M8 20H5a1 1 0 01-1-1v-3M9 12a3 3 0 106 0 3 3 0 00-6 0" },
+  { href: "/scan", label: "撮影", icon: "M4 8V5a1 1 0 011-1h3M16 4h3a1 1 0 011 1v3M20 16v3a1 1 0 01-1 1h-3M8 20H5a1 1 0 01-1-1v-3M9 12a3 3 0 106 0 3 3 0 00-6 0" },
   { href: "/products", label: "商品", icon: "M4 6h16M4 12h16M4 18h10" },
   { href: "/history", label: "履歴", icon: "M12 7v5l3 2M21 12a9 9 0 11-18 0 9 9 0 0118 0" },
   { href: "/menu", label: "メニュー", icon: "M5 12h.01M12 12h.01M19 12h.01" },

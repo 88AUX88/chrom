@@ -9,7 +9,7 @@ export default async function Zukan({ searchParams }: { searchParams: Promise<{ 
   const [list, imgs] = await Promise.all([listProducts({ category }), firstImageByProduct()]);
   return (
     <main>
-      <PageTitle label="Learn · Encyclopedia" title="商品図鑑" sub="特徴（と写真）を見て名前を思い出し、タップで答えを確認" />
+      <PageTitle label="学習・図鑑" title="商品図鑑" sub="特徴（と写真）を見て名前を思い出し、タップで答えを確認" />
       <div className="mb-3 flex flex-wrap gap-1 text-xs">
         <Link href="/learn/zukan" className={`rounded border px-2 py-1 ${!category ? "border-silver" : "border-line text-mute"}`}>すべて</Link>
         {[...new Set((await listProducts()).map((p) => p.category))].map((c) => <Link key={c} href={`/learn/zukan?category=${c}`} className={`rounded border px-2 py-1 ${category === c ? "border-silver" : "border-line text-mute"}`}>{CATEGORY_LABEL[c]}</Link>)}

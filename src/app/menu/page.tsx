@@ -4,7 +4,7 @@ import { logout } from "../actions";
 export default function Menu() {
   return (
     <main>
-      <PageTitle label="Menu" title="メニュー" />
+      <PageTitle label="メニュー" title="メニュー" />
       <div className="card py-0">
         <NavLink href="/candidates">CANDIDATES｜買付候補一覧（BUY/HOLD/PASS）</NavLink>
         <NavLink href="/profit">PROFIT｜利益計算・買付判定</NavLink>

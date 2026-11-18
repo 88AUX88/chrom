@@ -89,7 +89,7 @@ export function ProfitSummary({ a, priceOrigin }: { a: Analysis; priceOrigin: ke
           <Row label="総取得原価（現金支出）" value={r ? formatJpy(r.landedCashOutlayJpy) : "—"} c={a.certainty.acquisition} sub={v ? `会計上の取得原価 ${formatJpy(v.acquisitionCostJpy)}（${TAX_LABEL[v.status]}）` : undefined} />
           <Row label="手残り（消費税精算前）" value={r ? formatJpy(r.cashFlowBeforeJctSettlementJpy) : "—"} c={a.certainty.profit} />
           <Row label="手残り（消費税精算後）" value={v ? formatJpy(v.cashAfterJctSettlementJpy) : "—"} c={a.certainty.jctSettlement} sub={v ? `消費税 納付(+)/還付(-) ${formatJpy(v.jctSettlementJpy)}・区分 ${TAX_LABEL[a.businessTaxStatus]}` : undefined} />
-          <Row label="ROI / 利益率" value={v ? <>{formatPct(v.roi ? D(v.roi) : null)} / {formatPct(v.marginRate ? D(v.marginRate) : null)}</> : "—"} c={a.certainty.profit} />
+          <Row label="投資に対する利益率(ROI) / 利益率" value={v ? <>{formatPct(v.roi ? D(v.roi) : null)} / {formatPct(v.marginRate ? D(v.marginRate) : null)}</> : "—"} c={a.certainty.profit} />
           <Row
             label="赤字リスク"
             value={a.lossRisk.soldCount ? `${a.lossRisk.belowBreakEven}/${a.lossRisk.soldCount}件` : "判定不可"}

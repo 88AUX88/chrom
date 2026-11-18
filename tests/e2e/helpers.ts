@@ -4,7 +4,7 @@ export async function login(page: Page) {
   await page.goto("/login");
   await page.getByLabel("パスワード").fill("e2e-password");
   await page.getByRole("button", { name: "ログイン" }).click();
-  await expect(page.getByText("SCAN", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("撮影する", { exact: true }).first()).toBeVisible();
 }
 
 export async function noHorizontalOverflow(page: Page) {

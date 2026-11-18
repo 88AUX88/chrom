@@ -28,7 +28,7 @@ export default async function History({ searchParams }: { searchParams: Promise<
 
   return (
     <main>
-      <PageTitle label="History" title="履歴" />
+      <PageTitle label="履歴" title="履歴" />
       <ErrorBanner err={err} />
       {saved && <p className="mb-3 rounded-lg border border-buy/40 bg-buy/10 px-3 py-2 text-sm text-buy">判定を保存しました。</p>}
 

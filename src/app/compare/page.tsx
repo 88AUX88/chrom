@@ -11,7 +11,7 @@ const srcOf = (k: string): PurchasePriceSource => (k === "OFFICIAL" ? "OFFICIAL"
 
 export default async function Compare({ searchParams }: { searchParams: Promise<{ variant?: string; platform?: string }> }) {
   const sp = await searchParams;
-  if (!sp.variant) return <main><PageTitle label="Compare" title="国・販売先比較" /><Empty>商品ページで仕様を確定してから比較してください。<Link href="/products" className="underline">商品へ</Link></Empty></main>;
+  if (!sp.variant) return <main><PageTitle label="比較" title="国・販売先比較" /><Empty>商品ページで仕様を確定してから比較してください。<Link href="/products" className="underline">商品へ</Link></Empty></main>;
   const v = await getVariant(sp.variant);
   if (!v) return <main><Empty>仕様が見つかりません。</Empty></main>;
   const [retail, fees, settings] = await Promise.all([retailPricesFor(sp.variant), currentFeeRules(), getDecisionSettings()]);
@@ -39,7 +39,7 @@ export default async function Compare({ searchParams }: { searchParams: Promise<
 
   return (
     <main>
-      <PageTitle label="Compare" title={v.product.nameEn} sub={variantLabel(v.variant)} />
+      <PageTitle label="比較" title={v.product.nameEn} sub={variantLabel(v.variant)} />
       <p className="text-xs text-mute">重量: {v.variant.weightG ? `${v.variant.weightG}g（根拠あり）` : "未計測"} ・ 購入難易度: データなし（現地確認の記録が必要）</p>
       <div className="mt-2 flex gap-1 text-xs">{fees.map((f) => <Link key={f.platform} href={`?variant=${encodeURIComponent(sp.variant!)}&platform=${f.platform}`} className={`rounded border px-2 py-1 ${platform === f.platform ? "border-silver" : "border-line text-mute"}`}>{f.platform}</Link>)}</div>
 

@@ -22,7 +22,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
   const usd = (c.in_tokens_30d * 4 + c.out_tokens_30d * 20) / 1_000_000;
   return (
     <main>
-      <PageTitle label="Settings" title="設定" sub="変更は履歴として追加され、過去の値は上書きされません（判定基準を除く）" />
+      <PageTitle label="設定" title="設定" sub="変更は履歴として追加され、過去の値は上書きされません（判定基準を除く）" />
       <ErrorBanner err={err} />
 
       <Section title="判定基準（BUY/HOLD/PASS）">

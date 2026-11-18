@@ -12,7 +12,7 @@ export default async function ImportPage() {
   const batches = await db.select({ id: s.importBatches.id, kind: s.importBatches.kind, filename: s.importBatches.filename, accepted: s.importBatches.accepted, rejected: s.importBatches.rejected, createdAt: s.importBatches.createdAt }).from(s.importBatches).orderBy(desc(s.importBatches.id)).limit(20);
   return (
     <main>
-      <PageTitle label="Import" title="データ取込（CSV）" sub="UTF-8 の CSV。不正な行は推測で補完せず、理由付きで隔離します。" />
+      <PageTitle label="データ取込" title="データ取込（CSV）" sub="UTF-8 の CSV。不正な行は推測で補完せず、理由付きで隔離します。" />
       <ImportForm kinds={Object.keys(TEMPLATE_COLUMNS).map((k) => ({ k, l: LABEL[k] }))} />
       <Section title="テンプレート">
         <ul className="card space-y-2 text-sm">

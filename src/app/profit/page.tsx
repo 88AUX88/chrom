@@ -59,12 +59,12 @@ export default async function ProfitPage({ searchParams }: { searchParams: Promi
   if (!sp.variant)
     return (
       <main>
-        <PageTitle label="Profit" title="利益計算・判定" />
-        <Empty>まず <Link href="/scan" className="underline">SCAN</Link> または <Link href="/products" className="underline">商品</Link> から仕様を確定してください。</Empty>
+        <PageTitle label="利益計算" title="利益計算・判定" />
+        <Empty>まず <Link href="/scan" className="underline">撮影</Link> または <Link href="/products" className="underline">商品</Link> から仕様を確定してください。</Empty>
       </main>
     );
   const v = await getVariant(sp.variant);
-  if (!v) return <main><PageTitle label="Profit" title="利益計算・判定" /><Empty>仕様が見つかりません。</Empty></main>;
+  if (!v) return <main><PageTitle label="利益計算" title="利益計算・判定" /><Empty>仕様が見つかりません。</Empty></main>;
   const req = toReq(sp);
   const [a, retail, fees] = await Promise.all([analyze(req), retailPricesFor(req.variantId), currentFeeRules()]);
   if (!a) return null;
@@ -75,7 +75,7 @@ export default async function ProfitPage({ searchParams }: { searchParams: Promi
 
   return (
     <main>
-      <PageTitle label="Profit · Decide" title={v.product.nameEn} sub={<>{variantLabel(v.variant)} · <Link className="underline" href={`/products/${v.product.id}?variant=${encodeURIComponent(v.variant.id)}`}>商品へ</Link></>} />
+      <PageTitle label="利益計算・買付判断" title={v.product.nameEn} sub={<>{variantLabel(v.variant)} · <Link className="underline" href={`/products/${v.product.id}?variant=${encodeURIComponent(v.variant.id)}`}>商品へ</Link></>} />
 
       {/* 判定 */}
       <div className="card flex flex-col items-center gap-2 py-6 text-center">

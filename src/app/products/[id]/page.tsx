@@ -42,7 +42,7 @@ export default async function ProductPage({ params, searchParams }: { params: Pr
 
   return (
     <main>
-      <PageTitle label={`Product · ${CATEGORY_LABEL[p.category]}`} title={p.nameEn} sub={<span className="flex flex-wrap items-center gap-2"><span className="text-silver">{p.nameJaReading}</span><Rel v={p.catalogStatus} /><Link href={`/products/${p.id}/edit`} className="text-xs underline">編集</Link></span>} />
+      <PageTitle label={`商品・${CATEGORY_LABEL[p.category]}`} title={p.nameEn} sub={<span className="flex flex-wrap items-center gap-2"><span className="text-silver">{p.nameJaReading}</span><Rel v={p.catalogStatus} /><Link href={`/products/${p.id}/edit`} className="text-xs underline">編集</Link></span>} />
       <ErrorBanner err={sp.err} />
       {sp.saved && <p className="mb-2 rounded-lg border border-buy/40 bg-buy/10 px-3 py-2 text-sm text-buy">保存しました（変更履歴に記録）</p>}
 

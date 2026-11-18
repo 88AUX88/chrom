@@ -9,7 +9,7 @@ import { variantLabel } from "@/lib/settings-defaults";
 import { Empty, ExtLink, PageTitle, Rel, Section, Stat } from "@/components/ui";
 
 const RETAIL_KIND: Record<string, string> = { OFFICIAL: "正規店定価", RECEIPT: "正規購入レシート", BUYER_REPORT: "購入報告", ESTIMATE: "推定", UNKNOWN: "不明" };
-const MARKET_KIND: Record<string, string> = { ASK: "出品ASK", VERIFIED_SOLD: "実成約SOLD（確認）", REPORTED_SOLD: "実成約SOLD（報告）", ESTIMATE: "推定" };
+const MARKET_KIND: Record<string, string> = { ASK: "出品中の価格（ASK・未成約）", VERIFIED_SOLD: "売れた価格（SOLD・確認済）", REPORTED_SOLD: "売れた価格（SOLD・報告）", ESTIMATE: "推定" };
 
 export default async function MarketPage({ searchParams }: { searchParams: Promise<{ variant?: string; cond?: string }> }) {
   const sp = await searchParams;
@@ -24,7 +24,7 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
       group by v.id, p.name_en order by n desc`)).rows;
     return (
       <main>
-        <PageTitle label="Market" title="世界相場・流動性" sub="価格データのある仕様" />
+        <PageTitle label="相場" title="世界相場・流動性" sub="価格データのある仕様" />
         {rows.length === 0 ? <Empty>まだ価格データがありません。<Link href="/import" className="underline">取込</Link>から追加してください。</Empty> : (
           <ul className="card divide-y divide-line p-0">{rows.map((r) => <li key={r.variant_id}><Link href={`/market?variant=${encodeURIComponent(r.variant_id)}`} className="flex justify-between px-4 py-3 text-sm"><span>{r.name_en}<span className="block text-[10px] text-mute">{r.variant_id}</span></span><span className="text-mute">{r.n}件 ›</span></Link></li>)}</ul>
         )}
@@ -53,7 +53,7 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
 
   return (
     <main>
-      <PageTitle label="Market · Liquidity" title={v.product.nameEn} sub={<>{variantLabel(v.variant)} · <Link href={`/products/${v.product.id}?variant=${encodeURIComponent(sp.variant)}`} className="underline">商品へ</Link></>} />
+      <PageTitle label="相場・売れやすさ" title={v.product.nameEn} sub={<>{variantLabel(v.variant)} · <Link href={`/products/${v.product.id}?variant=${encodeURIComponent(sp.variant)}`} className="underline">商品へ</Link></>} />
 
       <Section title={`需要・流動性（日本・${cond === "NEW_UNUSED" ? "新品/未使用" : cond === "USED" ? "中古" : "全状態"}）`}>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -61,9 +61,9 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
           <Stat label="成約価格（中央値）" value={formatJpy(liq.soldStats90.median)} sub={liq.soldStats90.min ? `${formatJpy(liq.soldStats90.min)}〜${formatJpy(liq.soldStats90.max)}` : "—"} />
           <Stat label="競合出品" value={liq.dataStatus === "NO_DATA" ? "不明" : `${liq.activeAsks}件`} sub={liq.askStats.min ? `最安 ${formatJpy(liq.askStats.min)}` : "—"} />
           <Stat label="販売までの日数" value={liq.daysToSell.median !== null ? `${liq.daysToSell.median}日` : "算出不能"} sub={`記録 ${liq.daysToSell.n}件`} />
-          <Stat label="価格変動(CV)" value={liq.soldStats90.cv ? `${(Number(liq.soldStats90.cv) * 100).toFixed(1)}%` : "算出不能"} sub="成約5件以上で算出" />
+          <Stat label="価格のばらつき" value={liq.soldStats90.cv ? `${(Number(liq.soldStats90.cv) * 100).toFixed(1)}%` : "算出不能"} sub="成約5件以上で算出" />
           <Stat label="在庫月数" value={liq.monthsOfSupply !== null ? `${liq.monthsOfSupply}か月` : "算出不能"} sub={`在庫リスク ${LEVEL_LABEL[liq.inventoryRisk]}`} />
-          <Stat label="換金容易性" value={LEVEL_LABEL[liq.convertibility]} sub={buyback.length ? "買取査定あり" : "買取査定なし"} />
+          <Stat label="現金化しやすさ" value={LEVEL_LABEL[liq.convertibility]} sub={buyback.length ? "買取査定あり" : "買取査定なし"} />
           <Stat label="出品と成約の差" value={liq.askOverSoldPct !== null ? `${liq.askOverSoldPct > 0 ? "+" : ""}${(liq.askOverSoldPct * 100).toFixed(0)}%` : "—"} sub="出品中央値÷成約中央値" />
         </div>
         {liq.notes.length > 0 && <ul className="mt-2 space-y-0.5 text-xs text-mute">{liq.notes.map((n) => <li key={n}>・{n}</li>)}</ul>}

@@ -24,7 +24,7 @@ test("主要画面の表示・横スクロールなし・主要リンク", async
     await page.screenshot({ path: `test-results/${info.project.name}-${name}.png`, fullPage: true });
   }
   // 下部ナビの遷移
-  for (const label of ["商品", "履歴", "メニュー", "SCAN", "ホーム"]) {
+  for (const label of ["商品", "履歴", "メニュー", "撮影", "ホーム"]) {
     await page.getByRole("navigation").getByRole("link", { name: label }).click();
     await expect(page.locator("main h1").first()).toBeVisible();
   }

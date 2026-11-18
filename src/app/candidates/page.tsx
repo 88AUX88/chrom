@@ -34,7 +34,7 @@ export default async function Candidates() {
 
   return (
     <main>
-      <PageTitle label="Candidates" title="買付候補" sub={`BUY ${count("BUY")} / HOLD ${count("HOLD")} / PASS ${count("PASS")}（価格の根拠がある仕様 ${list.length}件）`} />
+      <PageTitle label="買付候補" title="買付候補" sub={`BUY ${count("BUY")} / HOLD ${count("HOLD")} / PASS ${count("PASS")}（価格の根拠がある仕様 ${list.length}件）`} />
       <p className="mb-3 text-xs text-mute">並び順: 判定 → 保守シナリオのROI（資金回収の効率）。仕入額の大きさでは並べません。</p>
       {list.length === 0 ? <Empty>候補がありません。商品詳細で仕様を確定し、買付条件（現地価格）を登録するか、正規価格を取込んでください。</Empty> : (
         <ul className="space-y-2">

@@ -31,9 +31,16 @@ export function Rel({ v }: { v: string }) {
   return <span className={`inline-block rounded border px-1.5 py-0.5 text-[10px] leading-none ${REL_STYLE[v] ?? "border-line text-mute"}`}>{REL_LABEL[v] ?? v}</span>;
 }
 
+const DECISION_JA: Record<string, string> = { BUY: "買い候補", HOLD: "保留・要確認", PASS: "見送り" };
+/** 判定バッジ（英語の判定名＋やさしい日本語） */
 export function DecisionBadge({ d, large }: { d: string; large?: boolean }) {
   const cls = d === "BUY" ? "bg-buy text-black" : d === "PASS" ? "bg-pass text-black" : "bg-hold text-black";
-  return <span className={`inline-block rounded-md font-bold tracking-widest ${cls} ${large ? "px-5 py-2 text-2xl" : "px-2 py-0.5 text-xs"}`}>{d}</span>;
+  return (
+    <span className={`inline-flex items-baseline gap-1.5 rounded-md ${cls} ${large ? "px-5 py-2" : "px-2 py-0.5"}`}>
+      <span className={`font-bold tracking-widest ${large ? "text-2xl" : "text-xs"}`}>{d}</span>
+      <span className={large ? "text-sm font-semibold" : "text-[10px]"}>{DECISION_JA[d] ?? ""}</span>
+    </span>
+  );
 }
 
 export function Empty({ children }: { children: ReactNode }) {

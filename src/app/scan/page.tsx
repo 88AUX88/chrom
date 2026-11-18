@@ -5,7 +5,7 @@ import { Scanner } from "./scanner";
 export default function ScanPage() {
   return (
     <main>
-      <PageTitle label="Scan" title="商品を撮影" sub="全体が写るよう、明るい場所で。刻印が見えると精度が上がります。" />
+      <PageTitle label="撮影" title="商品を撮影" sub="全体が写るよう、明るい場所で。刻印が見えると精度が上がります。" />
       <Scanner apiReady={identifyConfigured()} />
       <form action="/products" className="mt-6">
         <label className="h-label" htmlFor="q">手動検索</label>

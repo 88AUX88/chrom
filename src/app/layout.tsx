@@ -5,10 +5,10 @@ import { Nav } from "@/components/nav";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "LUXURY MARKET INTELLIGENCE",
+  title: "クロムハーツ買付判断",
   description: "海外ブランド買付判断システム",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, title: "LMI", statusBarStyle: "black-translucent" },
+  appleWebApp: { capable: true, title: "CH買付", statusBarStyle: "black-translucent" },
   icons: { icon: "/icon.svg", apple: "/icon.svg" },
   robots: { index: false, follow: false },
 };

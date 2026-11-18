@@ -20,14 +20,14 @@ export default async function Dashboard() {
   return (
     <main>
       <header className="mb-6">
-        <p className="h-label">Luxury Market Intelligence</p>
+        <p className="h-label">クロムハーツ 買付判断システム</p>
         <h1 className="mt-1 text-xl font-extralight tracking-[0.15em]">CHROME HEARTS</h1>
       </header>
 
       <Link href="/scan" className="flex h-36 flex-col items-center justify-center rounded-2xl bg-white text-black active:opacity-80">
         <svg viewBox="0 0 24 24" className="h-10 w-10" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden><path d="M3 8a2 2 0 012-2h2l2-2h6l2 2h2a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><circle cx="12" cy="13" r="4" /></svg>
-        <span className="mt-2 text-lg font-semibold tracking-[0.3em]">SCAN</span>
-        <span className="text-xs">撮影して商品を特定</span>
+        <span className="mt-2 text-lg font-semibold tracking-[0.2em]">撮影する</span>
+        <span className="text-xs">写真から商品を調べます</span>
       </Link>
 
       <form action="/products" className="mt-3">

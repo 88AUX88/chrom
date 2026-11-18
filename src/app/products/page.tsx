@@ -14,7 +14,7 @@ export default async function Products({ searchParams }: { searchParams: Promise
   const filtered = !!(sp.q || sp.category || sp.material || sp.status);
   return (
     <main>
-      <PageTitle label="Catalog" title="商品図鑑" sub={<>{list.length}件{filtered ? `（全${all.length}件中）` : ""} · <Link href="/products/new" className="underline">＋商品を追加</Link></>} />
+      <PageTitle label="商品図鑑" title="商品図鑑" sub={<>{list.length}件{filtered ? `（全${all.length}件中）` : ""} · <Link href="/products/new" className="underline">＋商品を追加</Link></>} />
       <form className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4" role="search">
         <input name="q" defaultValue={sp.q} placeholder="名称・読み・別名・型番" aria-label="検索語" className="field col-span-2 sm:col-span-4" />
         <select name="category" defaultValue={sp.category ?? ""} aria-label="カテゴリー" className="field"><option value="">全カテゴリー</option>{PRODUCT_CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}</select>

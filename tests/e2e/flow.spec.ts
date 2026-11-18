@@ -18,7 +18,7 @@ test.describe.serial("iPhone: 主要操作の通し確認", () => {
 
   test("ダッシュボード: 撮影ボタンとデータ不足の警告", async ({ page }) => {
     await login(page);
-    await expect(page.getByRole("link", { name: /SCAN 撮影して商品を特定/ })).toBeVisible();
+    await expect(page.getByRole("link", { name: /撮影する 写真から商品を調べます/ })).toBeVisible();
     await expect(page.getByText("海外正規価格のデータがありません")).toBeVisible();
     await expect(page.getByText("関税率が未確認です")).toBeVisible();
     await noHorizontalOverflow(page);

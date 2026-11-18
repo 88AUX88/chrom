@@ -16,7 +16,7 @@ export default async function EditProduct({ params }: { params: Promise<{ id: st
   const history = await db.select().from(s.changeLog).where(and(eq(s.changeLog.entity, "products"), eq(s.changeLog.entityId, id))).orderBy(desc(s.changeLog.id)).limit(20);
   return (
     <main>
-      <PageTitle label="Product · Edit" title={p.nameEn} sub={`最終更新 ${new Date(p.updatedAt).toLocaleString("ja-JP")}`} />
+      <PageTitle label="商品の編集" title={p.nameEn} sub={`最終更新 ${new Date(p.updatedAt).toLocaleString("ja-JP")}`} />
       <ProductForm
         action={updateProduct}
         mode="edit"
