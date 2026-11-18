@@ -13,7 +13,7 @@ test.describe.serial("iPhone: 主要操作の通し確認", () => {
     await page.goto("/login");
     await page.getByLabel("パスワード").fill("wrong");
     await page.getByRole("button", { name: "ログイン" }).click();
-    await expect(page.getByText("パスワードが違う")).toBeVisible();
+    await expect(page.getByText("パスワードが違います")).toBeVisible();
   });
 
   test("ダッシュボード: 撮影ボタンとデータ不足の警告", async ({ page }) => {
