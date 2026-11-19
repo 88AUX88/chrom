@@ -2,6 +2,16 @@
 // 使い方: npm run doctor
 import fs from "node:fs";
 
+/** .env.local を読む。Windows の PowerShell で作られた UTF-16 形式も読めるようにする */
+function readEnvFile(path) {
+  const buf = fs.readFileSync(path);
+  let encoding = "utf8";
+  if (buf[0] === 0xff && buf[1] === 0xfe) encoding = "utf16le";
+  else if (buf.length > 1 && buf[1] === 0 && buf[0] !== 0) encoding = "utf16le"; // BOM なし UTF-16
+  const text = buf.toString(encoding).replace(/^\uFEFF/, "");
+  return { text, encoding, bom: buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf };
+}
+
 const ok = (m) => console.log("✅ " + m);
 const ng = (m) => console.log("❌ " + m);
 const warn = (m) => console.log("⚠️  " + m);
@@ -15,7 +25,12 @@ if (!fs.existsSync(".env.local")) {
   ng("設定ファイル .env.local がありません。`npm run set-password` で作れます");
   process.exit(1);
 }
-const lines = fs.readFileSync(".env.local", "utf8").split(/\r?\n/);
+const envFile = readEnvFile(".env.local");
+if (envFile.encoding !== "utf8") {
+  ng("設定ファイル .env.local がアプリの読めない形式（UTF-16）で保存されています。`npm run set-password` で作り直すと直ります");
+  problems++;
+}
+const lines = envFile.text.split(/\r?\n/);
 const values = {};
 const counts = {};
 for (const line of lines) {
@@ -41,6 +56,6 @@ if (fs.existsSync(".next/BUILD_ID")) ok("アプリの準備（npm run build）�
 else { warn("まだ npm run build をしていません"); }
 
 console.log(problems === 0
-  ? "\n点検結果: 設定に問題はありません。ログインできない場合は、アプリを起動し直してから（control+C → npm start）もう一度試してください。"
+  ? "\n点検結果: 設定に問題はありません。ログインできない場合は、アプリを起動し直してから（Ctrl+C（Mac は control+C）→ npm start）もう一度試してください。"
   : "\n点検結果: 上の ❌ を直す必要があります。`npm run set-password` で作り直せます。");
 process.exit(problems === 0 ? 0 : 1);
